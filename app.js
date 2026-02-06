@@ -11,13 +11,12 @@
             sport: 'https://www.nrk.no/sport/toppsaker.rss',
             e24: 'https://e24.no/rss2/',
             aftenbladet: 'https://www.aftenbladet.no/rss',
-            aftenbladSport: 'https://www.aftenbladet.no/sport/rss',
             vg: 'https://www.vg.no/rss/feed/',
             vgSport: 'https://www.vg.no/rss/feed/?categories=sport',
         },
         feedRefresh: 5 * 60 * 1000,
         feedScrollInterval: 5000,
-        tickerSpeed: 1.2,
+        tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 10000,
         heroCount: 5,
@@ -47,10 +46,8 @@
         sport:       { label: 'NRK Sport',   status: 'pending' },
         e24:         { label: 'E24',         status: 'pending' },
         aftenbladet: { label: 'Aftenbladet', status: 'pending' },
-        aftenbladSport: { label: 'Aft. Sport', status: 'pending' },
         vg:          { label: 'VG',          status: 'pending' },
         vgSport:     { label: 'VG Sport',    status: 'pending' },
-        ticker:      { label: 'Ticker',      status: 'pending' },
         marked:      { label: 'Marked',      status: 'pending' },
         vaer:        { label: 'V\u00e6r',    status: 'pending' },
         bilder:      { label: 'Bilder',      status: 'pending' },
@@ -64,7 +61,6 @@
         sport:       { srcKey: 'sport',       label: 'NRK Sport',   sport: true },
         e24:         { srcKey: 'e24',         label: 'E24',         sport: false },
         aftenbladet: { srcKey: 'aftenbladet', label: 'Aftenbladet', sport: false },
-        aftenbladSport: { srcKey: 'aftenbladSport', label: 'Aft. Sport', sport: true },
         vg:          { srcKey: 'vg',          label: 'VG',          sport: false },
         vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    sport: true },
     };
@@ -94,46 +90,6 @@
     }
 
     renderSourceStatus();
-
-    /* ═══ IMAGE SLIDESHOW (Bing + Webcams) ═══ */
-    var slideImages = [];
-
-    /* ═══ EVENTS (scraped from Konserthus + Folken) ═══ */
-    var FALLBACK_EVENTS = [
-        { icon: '\uD83C\uDFB5', date: 'Laster...', title: 'Henter arrangementer...', venue: 'Stavanger' },
-    ];
-
-    var FOLKEN_MONTHS = {
-        'January':'01','February':'02','March':'03','April':'04',
-        'May':'05','June':'06','July':'07','August':'08',
-        'September':'09','October':'10','November':'11','December':'12',
-    };
-
-    function folkenIcon(type) {
-        if (type === 'Comedy') return '\uD83C\uDFAD';
-        if (type === 'Quiz') return '\uD83E\uDDE9';
-        if (type === 'Teater') return '\uD83C\uDFAD';
-        if (type === 'Film') return '\uD83C\uDFAC';
-        return '\uD83C\uDFB5';
-    }
-
-    function formatISODate(isoDate) {
-        if (!isoDate) return '';
-        var p = isoDate.split('T')[0].split('-');
-        var day = parseInt(p[2]);
-        var mon = parseInt(p[1]) - 1;
-        return day + '. ' + monN[mon].substring(0, 3);
-    }
-
-    function parseFolkenDate(dateText, timeText) {
-        var parts = dateText.trim().split(/\s+/);
-        if (parts.length < 2) return '';
-        var day = parts[0].padStart(2, '0');
-        var mon = FOLKEN_MONTHS[parts[1]] || '01';
-        var year = new Date().getFullYear();
-        var time = timeText || '00:00';
-        return year + '-' + mon + '-' + day + 'T' + time;
-    }
 
     /* ═══ HELPERS ═══ */
     var dayN = ['s\u00f8ndag','mandag','tirsdag','onsdag','torsdag','fredag','l\u00f8rdag'];
@@ -179,7 +135,8 @@
     var currentHeroTitle = '';
     var heroItems = [];
     var heroIndex = 0;
-    var rawFeeds = { news: [], sport: [], e24: [], aftenbladet: [], aftenbladSport: [], vg: [], vgSport: [] };
+    var rawFeeds = {};
+    Object.keys(CONFIG.feeds).forEach(function(k) { rawFeeds[k] = []; });
 
     function renderHero(item) {
         if (!item) return;
@@ -264,9 +221,9 @@
     function renderFeed(items) {
         feedTrack.innerHTML = '';
         feedScrollPos = 0;
-        feedTrack.style.transform = 'translateY(0)';
         if (!items.length) {
             feedTrack.innerHTML = '<div style="padding:40px 32px;color:var(--text-dim);font-size:1.1rem;">Laster nyheter&hellip;</div>';
+            feedTrack.style.transform = 'translateY(0)';
             return;
         }
         items.forEach(function(item, i) {
@@ -286,17 +243,27 @@
                 '</div>';
             feedTrack.appendChild(div);
         });
+        // Start scrolled to bottom (snapped to article boundary), scroll up
+        var maxScroll = feedTrack.scrollHeight - feedTrack.parentElement.clientHeight;
+        var step = 160;
+        var snappedMax = Math.floor(maxScroll / step) * step;
+        feedTrack.style.transition = 'none';
+        feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
+        void feedTrack.offsetWidth;
+        feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
     }
 
     function scrollFeed() {
         if (feedItems.length <= 4) return;
-        feedScrollPos++;
-        var offset = feedScrollPos * 160;
         var maxScroll = feedTrack.scrollHeight - feedTrack.parentElement.clientHeight;
-        if (offset >= maxScroll) {
+        var step = 160;
+        var snappedMax = Math.floor(maxScroll / step) * step;
+        feedScrollPos++;
+        var offset = snappedMax - (feedScrollPos * step);
+        if (offset <= 0) {
             feedScrollPos = 0;
             feedTrack.style.transition = 'none';
-            feedTrack.style.transform = 'translateY(0)';
+            feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
             void feedTrack.offsetWidth;
             feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
             return;
@@ -323,6 +290,7 @@
         renderHero(heroItems[heroIndex]);
         renderHeroProgress();
         renderFeed(feedItems);
+        scheduleTickerRebuild();
     }
 
     async function loadFeed(type) {
@@ -367,6 +335,7 @@
     }, CONFIG.heroInterval);
 
     /* ═══ IMAGE SLIDESHOW ═══ */
+    var slideImages = [];
     var diEl = document.getElementById('daily-images');
     var diIndex = 0;
     var diCaption, diDots;
@@ -472,6 +441,42 @@
     /* ═══ EVENTS (scraped from venue sites) ═══ */
     var eventsEl = document.getElementById('events-list');
 
+    var FALLBACK_EVENTS = [
+        { icon: '\uD83C\uDFB5', date: 'Laster...', title: 'Henter arrangementer...', venue: 'Stavanger' },
+    ];
+
+    var FOLKEN_MONTHS = {
+        'January':'01','February':'02','March':'03','April':'04',
+        'May':'05','June':'06','July':'07','August':'08',
+        'September':'09','October':'10','November':'11','December':'12',
+    };
+
+    function folkenIcon(type) {
+        if (type === 'Comedy') return '\uD83C\uDFAD';
+        if (type === 'Quiz') return '\uD83E\uDDE9';
+        if (type === 'Teater') return '\uD83C\uDFAD';
+        if (type === 'Film') return '\uD83C\uDFAC';
+        return '\uD83C\uDFB5';
+    }
+
+    function formatISODate(isoDate) {
+        if (!isoDate) return '';
+        var p = isoDate.split('T')[0].split('-');
+        var day = parseInt(p[2]);
+        var mon = parseInt(p[1]) - 1;
+        return day + '. ' + monN[mon].substring(0, 3);
+    }
+
+    function parseFolkenDate(dateText, timeText) {
+        var parts = dateText.trim().split(/\s+/);
+        if (parts.length < 2) return '';
+        var day = parts[0].padStart(2, '0');
+        var mon = FOLKEN_MONTHS[parts[1]] || '01';
+        var year = new Date().getFullYear();
+        var time = timeText || '00:00';
+        return year + '-' + mon + '-' + day + 'T' + time;
+    }
+
     function renderEvents(events) {
         eventsEl.innerHTML = '';
         if (!events.length) {
@@ -490,7 +495,7 @@
                     '<div class="event-title">' + escapeHtml(ev.title) + '</div>' +
                     '<div class="event-meta">' + escapeHtml(ev.venue) + '</div>' +
                 '</div>' +
-                '<div class="event-date">' + ev.date + '</div>';
+                '<div class="event-date">' + escapeHtml(ev.date) + '</div>';
             eventsEl.appendChild(div);
         });
     }
@@ -595,7 +600,7 @@
         }
     }
 
-    setTimeout(function() { loadEvents(); }, 14000);
+    setTimeout(function() { loadEvents(); }, 20000);
     setInterval(loadEvents, CONFIG.eventsRefresh);
 
     /* ═══ BUS DEPARTURES (Entur) ═══ */
@@ -657,34 +662,52 @@
         }
     }
 
-    setTimeout(function() { loadBusDepartures(); }, 16000);
+    setTimeout(function() { loadBusDepartures(); }, 14000);
     setInterval(loadBusDepartures, CONFIG.busRefresh);
 
     /* ═══ TICKER ═══ */
     var tickerEl = document.getElementById('ticker-content');
-    var tkHeadlines = [];
     var tkFinancial = [];
-    var tkOffset = 0;
-    var tkWidth = 0;
-    var tkRunning = false;
+    var tkBuilt = false;
+
+    function getTickerHeadlines() {
+        var all = [];
+        Object.keys(rawFeeds).forEach(function(key) {
+            rawFeeds[key].forEach(function(item) {
+                if (item.title) all.push(item.title);
+            });
+        });
+        for (var i = all.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = all[i]; all[i] = all[j]; all[j] = tmp;
+        }
+        return all.slice(0, 20);
+    }
+
+    function scheduleTickerRebuild() {
+        if (tkBuilt) return;
+        buildTickerContent();
+    }
 
     function buildTickerContent() {
-        if (!tkHeadlines.length && !tkFinancial.length) return;
+        var headlines = getTickerHeadlines();
+        if (!headlines.length && !tkFinancial.length) return;
         var parts = [];
         var newsIdx = 0;
-        var chunk = 5;
+        var chunk = 3;
 
-        while (newsIdx < tkHeadlines.length) {
-            var slice = tkHeadlines.slice(newsIdx, newsIdx + chunk);
+        while (newsIdx < headlines.length) {
+            var slice = headlines.slice(newsIdx, newsIdx + chunk);
             slice.forEach(function(h) {
-                parts.push('<span>' + h + '</span>');
+                parts.push('<span>' + escapeHtml(h) + '</span>');
                 parts.push('<span class="sep">\u2022</span>');
             });
             newsIdx += chunk;
 
             if (tkFinancial.length) {
                 tkFinancial.forEach(function(f) {
-                    parts.push('<span class="fin-item"><span class="fin-val">' + f.value + '</span><span class="fin-cur">' + f.label + '</span></span>');
+                    var chg = f.change ? fmtChange(f.change) : '';
+                    parts.push('<span class="fin-item"><span class="fin-val">' + escapeHtml(f.value) + '</span><span class="fin-meta"><span class="fin-cur">' + escapeHtml(f.label) + '</span>' + chg + '</span></span>');
                 });
                 parts.push('<span class="sep">\u2022</span>');
             }
@@ -692,43 +715,23 @@
 
         var html = parts.join('');
         tickerEl.innerHTML = html + html;
-        tickerEl.style.transform = 'translateX(0)';
-        tkWidth = tickerEl.scrollWidth / 2;
-        tkOffset = 0;
-        if (!tkRunning) { tkRunning = true; animTicker(); }
+        var halfWidth = tickerEl.scrollWidth / 2;
+        var duration = halfWidth / CONFIG.tickerSpeed;
+        tickerEl.style.animation = 'ticker-scroll ' + duration + 's linear infinite';
+        tkBuilt = true;
     }
 
-    function animTicker() {
-        tkOffset -= CONFIG.tickerSpeed;
-        if (Math.abs(tkOffset) >= tkWidth) tkOffset += tkWidth;
-        tickerEl.style.transform = 'translateX(' + tkOffset + 'px)';
-        requestAnimationFrame(animTicker);
-    }
-
-    async function loadTicker() {
-        setSource('ticker', 'loading');
-        try {
-            var url = CONFIG.rssApi + encodeURIComponent(CONFIG.feeds.news);
-            var resp = await fetch(url);
-            if (!resp.ok) throw new Error('Ticker RSS failed');
-            var data = await resp.json();
-            if (data.status !== 'ok' || !data.items || !data.items.length) throw new Error('No ticker items');
-            var hds = data.items.slice(0, 20).map(function(item) {
-                return item.title ? item.title.trim() : '';
-            }).filter(Boolean);
-            if (hds.length) { tkHeadlines = hds; buildTickerContent(); }
-            setSource('ticker', hds.length ? 'ok' : 'error');
-        } catch (e) {
-            console.warn('Ticker error:', e);
-            setSource('ticker', 'error');
-            if (!tkHeadlines.length) { tkHeadlines = ['Henter nyheter\u2026']; buildTickerContent(); }
-        }
+    function fmtChange(pct) {
+        if (Math.abs(pct) < 0.01) return '';
+        var arrow = pct > 0 ? '\u25B2' : '\u25BC';
+        return '<span class="fin-chg ' + (pct > 0 ? 'up' : 'down') + '">' + arrow + Math.abs(pct).toFixed(1) + '%</span>';
     }
 
     async function loadFinancialData() {
         setSource('marked', 'loading');
         try {
-            var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=1';
+            // Fetch exchange rates from Norges Bank
+            var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=2';
             var url = CONFIG.corsProxy + encodeURIComponent(nbUrl);
             var resp = await fetch(url);
             if (!resp.ok) throw new Error('Norges Bank API failed');
@@ -749,35 +752,34 @@
                 var curIdx = parseInt(indices[1]);
                 var curCode = curDim.values[curIdx].id;
                 var obs = ds.series[key].observations;
-                var lastKey = Object.keys(obs).sort(function(a,b) { return parseInt(a) - parseInt(b); }).pop();
-                rates[curCode] = obs[lastKey][0];
+                var obsKeys = Object.keys(obs).sort(function(a,b) { return parseInt(a) - parseInt(b); });
+                var cur = obs[obsKeys[obsKeys.length - 1]][0];
+                var prev = obsKeys.length > 1 ? obs[obsKeys[obsKeys.length - 2]][0] : null;
+                var pct = prev ? ((cur - prev) / prev) * 100 : 0;
+                rates[curCode] = { value: cur, change: pct };
             });
 
             tkFinancial = [];
-            if (rates.USD) tkFinancial.push({ label: 'USD/NOK', value: Number(rates.USD).toFixed(2) });
-            if (rates.EUR) tkFinancial.push({ label: 'EUR/NOK', value: Number(rates.EUR).toFixed(2) });
-            if (rates.GBP) tkFinancial.push({ label: 'GBP/NOK', value: Number(rates.GBP).toFixed(2) });
-            tkFinancial.push({ label: 'Brent', value: '$74.8' });
-            tkFinancial.push({ label: 'OSEBX', value: '1 472' });
+            if (rates.USD) tkFinancial.push({ label: 'USD/NOK', value: Number(rates.USD.value).toFixed(2), change: rates.USD.change });
+            if (rates.EUR) tkFinancial.push({ label: 'EUR/NOK', value: Number(rates.EUR.value).toFixed(2), change: rates.EUR.change });
+            if (rates.GBP) tkFinancial.push({ label: 'GBP/NOK', value: Number(rates.GBP.value).toFixed(2), change: rates.GBP.change });
+
             buildTickerContent();
             setSource('marked', 'ok');
         } catch (e) {
             console.warn('Financial data error:', e);
             setSource('marked', 'error');
             tkFinancial = [
-                { label: 'USD/NOK', value: '\u2013' },
-                { label: 'EUR/NOK', value: '\u2013' },
-                { label: 'Brent', value: '$74.8' },
-                { label: 'OSEBX', value: '1 472' },
+                { label: 'USD/NOK', value: '\u2013', change: 0 },
+                { label: 'EUR/NOK', value: '\u2013', change: 0 },
+                { label: 'GBP/NOK', value: '\u2013', change: 0 },
             ];
             buildTickerContent();
         }
     }
 
-    // Stagger ticker + finance (after feeds finish)
-    setTimeout(function() { loadTicker(); }, 10000);
+    // Stagger finance (after feeds finish)
     setTimeout(function() { loadFinancialData(); }, 12000);
-    setInterval(loadTicker, CONFIG.feedRefresh);
     setInterval(loadFinancialData, CONFIG.financeRefresh);
 
     /* ═══ WEATHER ═══ */
@@ -836,11 +838,11 @@
         }
     }
 
-    setTimeout(function() { loadWeather(); }, 18000);
+    setTimeout(function() { loadWeather(); }, 16000);
     setInterval(loadWeather, CONFIG.weatherRefresh);
 
     /* ═══ IMAGE SLIDESHOW LOADER ═══ */
-    setTimeout(function() { loadImages(); }, 22000);
+    setTimeout(function() { loadImages(); }, 24000);
     setInterval(loadImages, CONFIG.imageRefresh);
 
     /* ═══ LOADING ═══ */
