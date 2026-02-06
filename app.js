@@ -280,15 +280,46 @@
         merged.sort(function(a, b) { return new Date(b.pubDate || 0) - new Date(a.pubDate || 0); });
         var seen = {};
         var all = [];
-        for (var i = 0; i < merged.length && all.length < 25; i++) {
+        for (var i = 0; i < merged.length && all.length < 30; i++) {
             var key = merged[i].title.toLowerCase().trim();
             if (seen[key]) continue;
             seen[key] = true;
             all.push(merged[i]);
         }
         if (!all.length) return;
-        heroItems = all.slice(0, CONFIG.heroCount);
-        feedItems = all.slice(CONFIG.heroCount);
+
+        // Hero: newest articles, max 2 per source
+        heroItems = [];
+        var heroSourceCount = {};
+        for (var h = 0; h < all.length && heroItems.length < CONFIG.heroCount; h++) {
+            var src = all[h].source || '';
+            heroSourceCount[src] = (heroSourceCount[src] || 0) + 1;
+            if (heroSourceCount[src] <= 2) heroItems.push(all[h]);
+        }
+
+        // Feed: interleave sources for variety
+        var heroSet = {};
+        heroItems.forEach(function(item) { heroSet[item.title.toLowerCase().trim()] = true; });
+        var remaining = all.filter(function(item) { return !heroSet[item.title.toLowerCase().trim()]; });
+        var bySource = {};
+        remaining.forEach(function(item) {
+            var s = item.source || 'unknown';
+            if (!bySource[s]) bySource[s] = [];
+            bySource[s].push(item);
+        });
+        var sources = Object.keys(bySource);
+        feedItems = [];
+        var si = 0;
+        while (feedItems.length < 20 && sources.length) {
+            var s = sources[si % sources.length];
+            if (bySource[s].length) {
+                feedItems.push(bySource[s].shift());
+            } else {
+                sources.splice(si % sources.length, 1);
+                if (!sources.length) break;
+            }
+            si++;
+        }
         if (heroIndex >= heroItems.length) heroIndex = 0;
         renderHero(heroItems[heroIndex]);
         renderHeroProgress();
@@ -671,7 +702,7 @@
     /* ═══ TICKER ═══ */
     var tickerEl = document.getElementById('ticker-content');
     var tkFinancial = [];
-    var tkBuilt = false;
+    var tkRebuildTimer = null;
 
     function getTickerHeadlines() {
         var all = [];
@@ -684,12 +715,15 @@
             var j = Math.floor(Math.random() * (i + 1));
             var tmp = all[i]; all[i] = all[j]; all[j] = tmp;
         }
-        return all.slice(0, 20);
+        return all;
     }
 
     function scheduleTickerRebuild() {
-        if (tkBuilt) return;
-        buildTickerContent();
+        if (tkRebuildTimer) clearTimeout(tkRebuildTimer);
+        tkRebuildTimer = setTimeout(function() {
+            tkRebuildTimer = null;
+            buildTickerContent();
+        }, 2000);
     }
 
     function buildTickerContent() {
@@ -720,8 +754,9 @@
         tickerEl.innerHTML = html + html;
         var halfWidth = tickerEl.scrollWidth / 2;
         var duration = halfWidth / CONFIG.tickerSpeed;
+        tickerEl.style.animation = 'none';
+        void tickerEl.offsetWidth;
         tickerEl.style.animation = 'ticker-scroll ' + duration + 's linear infinite';
-        tkBuilt = true;
     }
 
     function fmtChange(pct) {
