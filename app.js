@@ -29,8 +29,8 @@
         eventsRefresh: 6 * 60 * 60 * 1000,
         imageRefresh: 60 * 60 * 1000,
         webcams: [
-            { src: 'https://kamera.atlas.vegvesen.no/api/images/1129023_1', caption: 'Vegkamera \u2014 E39 Forus' },
-            { src: 'https://kamera.atlas.vegvesen.no/api/images/1229047_1', caption: 'Vegkamera \u2014 Stavanger' },
+            { src: 'https://kamera.atlas.vegvesen.no/api/images/1129023_1', caption: 'Vegkamera \u2014 E39 Forusbeen' },
+            { src: 'https://kamera.atlas.vegvesen.no/api/images/1229047_1', caption: 'Vegkamera \u2014 E134 Midtl\u00e6ger (1084 moh)' },
         ],
         busStop: 'NSR:StopPlace:26354',
         busStopName: 'Vestre Svanholmen',
