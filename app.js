@@ -1,3 +1,5 @@
+// app.js — Author: Christer Grimsæth
+
 (function() {
     'use strict';
 
@@ -810,7 +812,7 @@
         setSource('vaer', 'loading');
         try {
             var url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=' + CONFIG.weatherLat + '&lon=' + CONFIG.weatherLon;
-            var resp = await fetch(url, { headers: { 'User-Agent': 'EnergyXInfoScreen/1.0' } });
+            var resp = await fetch(url, { headers: { 'User-Agent': 'PelifixInfoScreen/1.0' } });
             if (!resp.ok) throw new Error('Weather failed');
             var data = await resp.json();
             var ts = data.properties.timeseries[0];
