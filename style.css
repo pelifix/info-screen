@@ -417,7 +417,7 @@ html, body {
 }
 .ticker-content span { padding: 0 24px; }
 .ticker-content .sep {
-    color: var(--accent); font-size: 0.6rem; padding: 0 16px; opacity: 0.6;
+    color: var(--accent); font-size: 1.2rem; padding: 0 16px; opacity: 0.4;
     display: inline-flex; align-items: center;
 }
 .ticker-content .fin-item {

@@ -678,16 +678,15 @@
             var slice = tkHeadlines.slice(newsIdx, newsIdx + chunk);
             slice.forEach(function(h) {
                 parts.push('<span>' + h + '</span>');
-                parts.push('<span class="sep">\u25C6</span>');
+                parts.push('<span class="sep">\u2022</span>');
             });
             newsIdx += chunk;
 
             if (tkFinancial.length) {
-                parts.push('<span class="sep">\u25C6</span>');
                 tkFinancial.forEach(function(f) {
                     parts.push('<span class="fin-item"><span class="fin-val">' + f.value + '</span><span class="fin-cur">' + f.label + '</span></span>');
                 });
-                parts.push('<span class="sep">\u25C6</span>');
+                parts.push('<span class="sep">\u2022</span>');
             }
         }
 
