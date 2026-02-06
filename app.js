@@ -13,6 +13,7 @@
             aftenbladet: 'https://www.aftenbladet.no/rss',
             vg: 'https://www.vg.no/rss/feed/',
             vgSport: 'https://www.vg.no/rss/feed/?categories=sport',
+            dn: 'https://services.dn.no/api/feed/rss/',
         },
         feedRefresh: 5 * 60 * 1000,
         feedScrollInterval: 5000,
@@ -48,6 +49,7 @@
         aftenbladet: { label: 'Aftenbladet', status: 'pending' },
         vg:          { label: 'VG',          status: 'pending' },
         vgSport:     { label: 'VG Sport',    status: 'pending' },
+        dn:          { label: 'DN',          status: 'pending' },
         marked:      { label: 'Marked',      status: 'pending' },
         vaer:        { label: 'V\u00e6r',    status: 'pending' },
         bilder:      { label: 'Bilder',      status: 'pending' },
@@ -63,6 +65,7 @@
         aftenbladet: { srcKey: 'aftenbladet', label: 'Aftenbladet', sport: false },
         vg:          { srcKey: 'vg',          label: 'VG',          sport: false },
         vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    sport: true },
+        dn:          { srcKey: 'dn',          label: 'DN',          sport: false },
     };
 
     var lastRefreshTime = null;
