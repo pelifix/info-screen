@@ -106,6 +106,7 @@
     /* ═══ HELPERS ═══ */
     var dayN = ['s\u00f8ndag','mandag','tirsdag','onsdag','torsdag','fredag','l\u00f8rdag'];
     var monN = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'];
+    var monShort = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'];
 
     function timeAgo(dateStr) {
         var diff = Date.now() - new Date(dateStr).getTime();
@@ -129,12 +130,11 @@
         document.getElementById('clock-h').textContent = String(now.getHours()).padStart(2,'0');
         document.getElementById('clock-m').textContent = String(now.getMinutes()).padStart(2,'0');
         document.getElementById('clock-s').textContent = String(now.getSeconds()).padStart(2,'0');
-        document.getElementById('clock-date').textContent = dayN[now.getDay()] + ' ' + now.getDate() + '. ' + monN[now.getMonth()];
         var d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
         var ys = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
         var wk = Math.ceil(((d - ys) / 86400000 + 1) / 7);
-        document.getElementById('clock-week').textContent = 'Uke ' + wk + ' \u00b7 ' + now.getFullYear();
+        document.getElementById('clock-date').textContent = dayN[now.getDay()] + ' ' + now.getDate() + '. ' + monShort[now.getMonth()] + ' \u00b7 Uke ' + wk;
     }
     setInterval(updateClock, 1000);
     updateClock();
@@ -571,9 +571,11 @@
                 '<div class="event-icon">' + iconHtml + '</div>' +
                 '<div class="event-info">' +
                     '<div class="event-title">' + escapeHtml(ev.title) + '</div>' +
-                    '<div class="event-meta">' + escapeHtml(ev.venue) + '</div>' +
-                '</div>' +
-                '<div class="event-date">' + escapeHtml(ev.date) + '</div>';
+                    '<div class="event-bottom">' +
+                        '<div class="event-meta">' + escapeHtml(ev.venue) + '</div>' +
+                        '<div class="event-date">' + escapeHtml(ev.date) + '</div>' +
+                    '</div>' +
+                '</div>';
             eventsEl.appendChild(div);
         });
     }
