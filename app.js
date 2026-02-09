@@ -26,7 +26,7 @@
         weatherLocation: 'Stavanger, Norge',
         weatherRefresh: 30 * 60 * 1000,
         financeRefresh: 30 * 60 * 1000,
-        eventsRefresh: 6 * 60 * 60 * 1000,
+        eventsRefresh: 60 * 60 * 1000,
         imageRefresh: 60 * 60 * 1000,
         webcams: [
             { src: 'https://kamera.atlas.vegvesen.no/api/images/1129023_1', caption: 'Vegkamera \u2014 E39 Forusbeen' },
@@ -83,13 +83,6 @@
             var s = SOURCES[key];
             return '<div class="source-dot"><div class="dot ' + s.status + '"></div>' + s.label + '</div>';
         }).join('');
-        var refreshEl = document.getElementById('last-refresh');
-        if (refreshEl && lastRefreshTime) {
-            refreshEl.textContent = 'Sist oppdatert: ' +
-                String(lastRefreshTime.getHours()).padStart(2, '0') + ':' +
-                String(lastRefreshTime.getMinutes()).padStart(2, '0') + ':' +
-                String(lastRefreshTime.getSeconds()).padStart(2, '0');
-        }
     }
 
     renderSourceStatus();
@@ -129,6 +122,38 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    /* ═══ REFRESH PROGRESS RING ═══ */
+    var refreshRingEl = document.getElementById('refresh-ring-fill');
+    var refreshArrowEl = document.getElementById('refresh-arrow');
+    var refreshLabelEl = document.getElementById('clock-last-refresh');
+    var RING_CIRCUMFERENCE = 2 * Math.PI * 14; // r=14
+    var feedCycleStart = Date.now();
+
+    function resetFeedCycle() { feedCycleStart = Date.now(); }
+
+    function updateRefreshRing() {
+        if (!refreshRingEl) return;
+        var elapsed = Date.now() - feedCycleStart;
+        var remaining = CONFIG.feedRefresh - elapsed;
+        if (remaining <= 0) remaining = 0;
+        var progress = Math.min(elapsed / CONFIG.feedRefresh, 1);
+        var offset = RING_CIRCUMFERENCE * (1 - progress);
+        refreshRingEl.style.strokeDashoffset = offset;
+        // Rotate arrowhead to leading edge of arc
+        if (refreshArrowEl) {
+            var angle = progress * 360;
+            refreshArrowEl.setAttribute('transform', 'rotate(' + angle + ', 18, 18)');
+            refreshArrowEl.style.opacity = progress < 0.03 ? '0' : '1';
+        }
+        // Countdown text
+        var secs = Math.ceil(remaining / 1000);
+        var mins = Math.floor(secs / 60);
+        var s = secs % 60;
+        refreshLabelEl.textContent = mins > 0 ? mins + ':' + String(s).padStart(2, '0') : secs + 's';
+    }
+    setInterval(updateRefreshRing, 1000);
+    updateRefreshRing();
 
     /* ═══ NEWS FEED ═══ */
     var heroEl = document.getElementById('hero-story');
@@ -325,6 +350,10 @@
         renderHeroProgress();
         renderFeed(feedItems);
         scheduleTickerRebuild();
+        // Reset refresh ring when a new cycle completes (>80% of interval elapsed)
+        if (Date.now() - feedCycleStart > CONFIG.feedRefresh * 0.8) {
+            resetFeedCycle();
+        }
     }
 
     async function loadFeed(type) {

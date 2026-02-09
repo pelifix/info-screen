@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Infoskjerm</title>
-    <meta http-equiv="refresh" content="3600">
+    <meta http-equiv="refresh" content="21600">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Christer Grimsæth">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,8 +37,18 @@
 
     <div class="widgets">
         <div class="widget-card">
-            <div class="clock-time">
-                <span id="clock-h">00</span><span class="clock-colon">:</span><span id="clock-m">00</span><span class="clock-seconds" id="clock-s">00</span>
+            <div class="clock-row">
+                <div class="clock-time">
+                    <span id="clock-h">00</span><span class="clock-colon">:</span><span id="clock-m">00</span><span class="clock-seconds" id="clock-s">00</span>
+                </div>
+                <div class="clock-refresh" id="clock-refresh">
+                    <svg class="refresh-ring" viewBox="0 0 36 36" width="36" height="36">
+                        <circle class="refresh-ring-bg" cx="18" cy="18" r="14" fill="none" stroke-width="3"/>
+                        <circle class="refresh-ring-fill" id="refresh-ring-fill" cx="18" cy="18" r="14" fill="none" stroke-width="3"/>
+                        <polygon class="refresh-arrow" id="refresh-arrow" points="28,18 36,18 32,24"/>
+                    </svg>
+                    <span class="refresh-label" id="clock-last-refresh">Oppdaterer&hellip;</span>
+                </div>
             </div>
             <div class="clock-date" id="clock-date"></div>
             <div class="clock-week" id="clock-week"></div>
@@ -81,7 +91,6 @@
                 <div class="brand-name"><span class="brand-by">made by </span>pelifix</div>
             </div>
             <div class="source-status" id="source-status"></div>
-            <div class="last-refresh" id="last-refresh"></div>
         </div>
     </div>
 
