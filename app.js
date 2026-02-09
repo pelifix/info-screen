@@ -24,9 +24,9 @@
         weatherLat: 58.97,
         weatherLon: 5.73,
         weatherLocation: 'Stavanger, Norge',
-        weatherRefresh: 30 * 60 * 1000,
+        weatherRefresh: 10 * 60 * 1000,
         financeRefresh: 30 * 60 * 1000,
-        eventsRefresh: 60 * 60 * 1000,
+        eventsRefresh: 3 * 60 * 60 * 1000,
         imageRefresh: 60 * 60 * 1000,
         webcams: [
             { src: 'https://kamera.atlas.vegvesen.no/api/images/1129023_1', caption: 'Vegkamera \u2014 E39 Forusbeen' },
@@ -38,34 +38,36 @@
         busStop: 'NSR:StopPlace:26354',
         busStopName: 'Vestre Svanholmen',
         busDepartures: 5,
-        busRefresh: 60 * 1000,
+        busRefresh: 45 * 1000,
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
     var SOURCES = {
-        nyheter:     { label: 'NRK',         status: 'pending' },
-        sport:       { label: 'NRK Sport',   status: 'pending' },
-        e24:         { label: 'E24',         status: 'pending' },
-        aftenbladet: { label: 'Aftenbladet', status: 'pending' },
-        vg:          { label: 'VG',          status: 'pending' },
-        vgSport:     { label: 'VG Sport',    status: 'pending' },
-        dn:          { label: 'DN',          status: 'pending' },
-        marked:      { label: 'Marked',      status: 'pending' },
-        vaer:        { label: 'V\u00e6r',    status: 'pending' },
-        bilder:      { label: 'Bilder',      status: 'pending' },
-        buss:        { label: 'Buss',        status: 'pending' },
-        konserthus:  { label: 'Konserthus',  status: 'pending' },
-        folken:      { label: 'Folken',      status: 'pending' },
+        nyheter:     { label: 'NRK',         status: 'pending', refresh: CONFIG.feedRefresh },
+        sport:       { label: 'NRK Sport',   status: 'pending', refresh: CONFIG.feedRefresh },
+        e24:         { label: 'E24',         status: 'pending', refresh: CONFIG.feedRefresh },
+        aftenbladet: { label: 'Aftenbladet', status: 'pending', refresh: CONFIG.feedRefresh },
+        vg:          { label: 'VG',          status: 'pending', refresh: CONFIG.feedRefresh },
+        vgSport:     { label: 'VG Sport',    status: 'pending', refresh: CONFIG.feedRefresh },
+        dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh },
+        marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
+        vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
+        bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
+        buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh },
+        konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh },
+        folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh },
     };
 
+    var preRefreshTimers = {};
+
     var FEED_META = {
-        news:        { srcKey: 'nyheter',     label: 'NRK',         sport: false },
-        sport:       { srcKey: 'sport',       label: 'NRK Sport',   sport: true },
-        e24:         { srcKey: 'e24',         label: 'E24',         sport: false },
-        aftenbladet: { srcKey: 'aftenbladet', label: 'Aftenbladet', sport: false },
-        vg:          { srcKey: 'vg',          label: 'VG',          sport: false },
-        vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    sport: true },
-        dn:          { srcKey: 'dn',          label: 'DN',          sport: false },
+        news:        { srcKey: 'nyheter',     label: 'NRK',         color: 'src-nrk' },
+        sport:       { srcKey: 'sport',       label: 'NRK Sport',   color: 'src-nrk-sport' },
+        e24:         { srcKey: 'e24',         label: 'E24',         color: 'src-e24' },
+        aftenbladet: { srcKey: 'aftenbladet', label: 'Aftenbladet', color: 'src-aftenbladet' },
+        vg:          { srcKey: 'vg',          label: 'VG',          color: 'src-vg' },
+        vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    color: 'src-vg-sport' },
+        dn:          { srcKey: 'dn',          label: 'DN',          color: 'src-dn' },
     };
 
     var lastRefreshTime = null;
@@ -73,6 +75,20 @@
     function setSource(key, status) {
         SOURCES[key].status = status;
         if (status === 'ok') lastRefreshTime = new Date();
+        // Schedule pre-refresh glow 8s before next refresh
+        if (status === 'ok' || status === 'error') {
+            if (preRefreshTimers[key]) clearTimeout(preRefreshTimers[key]);
+            var interval = SOURCES[key].refresh;
+            if (interval) {
+                var delay = Math.max(interval - 10000, 0);
+                preRefreshTimers[key] = setTimeout(function() {
+                    if (SOURCES[key].status === 'ok' || SOURCES[key].status === 'error') {
+                        SOURCES[key].status = 'soon';
+                        renderSourceStatus();
+                    }
+                }, delay);
+            }
+        }
         renderSourceStatus();
     }
 
@@ -172,8 +188,7 @@
         currentHeroTitle = item.title;
 
         var meta = FEED_META[item.source];
-        var isSport = meta && meta.sport;
-        var badgeClass = isSport ? 'sport-badge' : 'news-badge';
+        var colorClass = meta ? meta.color : '';
         var badgeText = meta ? meta.label : 'Siste nytt';
         var imgContent = item.image
             ? '<img src="' + escapeHtml(item.image) + '" alt="">'
@@ -181,11 +196,11 @@
 
         var html =
             '<div class="hero-img-wrap">' +
-                '<div class="hero-badge ' + badgeClass + '">' + badgeText + '</div>' +
+                '<div class="hero-badge ' + colorClass + '">' + badgeText + '</div>' +
                 imgContent +
             '</div>' +
             '<div class="hero-text">' +
-                '<div class="hero-source ' + (isSport ? 'sport' : '') + '">' + badgeText + '</div>' +
+                '<div class="hero-source ' + colorClass + '">' + badgeText + '</div>' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
                 (item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                 '<div class="hero-time">' + (item.pubDate ? timeAgo(item.pubDate) : '') + '</div>' +
@@ -256,7 +271,7 @@
         }
         items.forEach(function(item, i) {
             var meta = FEED_META[item.source];
-            var isSport = meta && meta.sport;
+            var colorClass = meta ? meta.color : '';
             var div = document.createElement('div');
             div.className = 'article';
             var imgHtml = item.image
@@ -264,7 +279,7 @@
                 : '<div class="article-img no-image">\u{1F4F0}</div>';
             div.innerHTML = imgHtml +
                 '<div class="article-text">' +
-                    '<div class="article-source ' + (isSport ? 'sport' : '') + '">' + (meta ? meta.label : 'Nyheter') + '</div>' +
+                    '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
                     (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                     '<div class="article-time">' + (item.pubDate ? timeAgo(item.pubDate) : '') + '</div>' +
@@ -911,6 +926,16 @@
     /* ═══ IMAGE SLIDESHOW LOADER ═══ */
     setTimeout(function() { loadImages(); }, 24000);
     setInterval(loadImages, CONFIG.imageRefresh);
+
+    /* ═══ CURSOR AUTO-HIDE ═══ */
+    var cursorTimer = null;
+    document.addEventListener('mousemove', function() {
+        document.body.classList.remove('hide-cursor');
+        if (cursorTimer) clearTimeout(cursorTimer);
+        cursorTimer = setTimeout(function() {
+            document.body.classList.add('hide-cursor');
+        }, 3000);
+    });
 
     /* ═══ LOADING ═══ */
     window.addEventListener('load', function() {
