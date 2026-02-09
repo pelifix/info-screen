@@ -99,6 +99,7 @@ while true; do
 done
 KIOSKEOF
 
+sed -i "s|\"\$KIOSK_URL\"|$KIOSK_URL|" /home/$KIOSK_USER/kiosk.sh
 chmod +x /home/$KIOSK_USER/kiosk.sh
 chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/kiosk.sh
 
