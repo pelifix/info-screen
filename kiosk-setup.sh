@@ -16,7 +16,7 @@
 set -e
 
 KIOSK_URL="https://pelifix.github.io/info-screen/"
-KIOSK_USER="pi"
+KIOSK_USER="christer"
 
 echo "=== Info Screen Kiosk Setup ==="
 echo "URL: $KIOSK_URL"
@@ -72,7 +72,7 @@ for i in $(seq 1 30); do
 done
 
 # Clean up Chromium crash flags (prevents "restore session" dialogs)
-CHROMIUM_DIR="/home/pi/.config/chromium/Default"
+CHROMIUM_DIR="$HOME/.config/chromium/Default"
 mkdir -p "$CHROMIUM_DIR"
 sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' "$CHROMIUM_DIR/Preferences" 2>/dev/null || true
 sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' "$CHROMIUM_DIR/Preferences" 2>/dev/null || true
