@@ -102,22 +102,34 @@ KIOSKEOF
 chmod +x /home/$KIOSK_USER/kiosk.sh
 chown $KIOSK_USER:$KIOSK_USER /home/$KIOSK_USER/kiosk.sh
 
-# Disable screen blanking in boot config
+# Disable screen blanking
 echo "[5/6] Disabling screen blanking..."
-if ! grep -q "consoleblank=0" /boot/cmdline.txt 2>/dev/null && \
-   ! grep -q "consoleblank=0" /boot/firmware/cmdline.txt 2>/dev/null; then
-    # Bookworm uses /boot/firmware/, Bullseye uses /boot/
+# Raspberry Pi: via cmdline.txt
+if [ -f /boot/cmdline.txt ] || [ -f /boot/firmware/cmdline.txt ]; then
     CMDLINE="/boot/cmdline.txt"
     [ -f /boot/firmware/cmdline.txt ] && CMDLINE="/boot/firmware/cmdline.txt"
-    sed -i 's/$/ consoleblank=0/' "$CMDLINE"
+    if ! grep -q "consoleblank=0" "$CMDLINE"; then
+        sed -i 's/$/ consoleblank=0/' "$CMDLINE"
+    fi
+fi
+# All systems: via GRUB kernel params
+if [ -f /etc/default/grub ]; then
+    if ! grep -q "consoleblank=0" /etc/default/grub; then
+        sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 consoleblank=0"/' /etc/default/grub
+        update-grub 2>/dev/null || true
+    fi
 fi
 
-# Optional: set GPU memory for smoother rendering (Pi 3/4)
+# Optional: set GPU memory for smoother rendering (Pi only)
 echo "[6/6] Optimizing GPU memory..."
-CONFIG="/boot/config.txt"
-[ -f /boot/firmware/config.txt ] && CONFIG="/boot/firmware/config.txt"
-if ! grep -q "gpu_mem=" "$CONFIG"; then
-    echo "gpu_mem=128" >> "$CONFIG"
+if [ -f /boot/config.txt ] || [ -f /boot/firmware/config.txt ]; then
+    CONFIG="/boot/config.txt"
+    [ -f /boot/firmware/config.txt ] && CONFIG="/boot/firmware/config.txt"
+    if ! grep -q "gpu_mem=" "$CONFIG"; then
+        echo "gpu_mem=128" >> "$CONFIG"
+    fi
+else
+    echo "  Skipped (not a Raspberry Pi)"
 fi
 
 echo ""
