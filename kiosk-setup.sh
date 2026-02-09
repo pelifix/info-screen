@@ -65,6 +65,23 @@ xset -dpms
 # Hide cursor after 0.5s of inactivity
 unclutter -idle 0.5 -root &
 
+# Set optimal resolution: prefer 1440p for crisp text, fall back to 1080p
+CONNECTED_OUTPUT=$(xrandr | grep ' connected' | head -1 | cut -d' ' -f1)
+SCALE_FACTOR="1"
+if xrandr --output "$CONNECTED_OUTPUT" --mode 2560x1440 2>/dev/null; then
+    SCALE_FACTOR="1.333"
+elif xrandr --output "$CONNECTED_OUTPUT" --mode 1920x1080 2>/dev/null; then
+    SCALE_FACTOR="1"
+fi
+sleep 1
+
+# Detect current screen resolution and compute CSS viewport size
+SCREEN_RES=$(xrandr | grep '\*' | head -1 | awk '{print $1}')
+SCREEN_W=$(echo "$SCREEN_RES" | cut -dx -f1)
+SCREEN_H=$(echo "$SCREEN_RES" | cut -dx -f2)
+CSS_W=$(awk "BEGIN {printf \"%d\", $SCREEN_W / $SCALE_FACTOR}")
+CSS_H=$(awk "BEGIN {printf \"%d\", $SCREEN_H / $SCALE_FACTOR}")
+
 # Wait for network (max 30s)
 for i in $(seq 1 30); do
     if ping -c1 -W1 8.8.8.8 &>/dev/null; then break; fi
@@ -78,6 +95,7 @@ sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' "$CHROMIUM_DIR/Preferen
 sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' "$CHROMIUM_DIR/Preferences" 2>/dev/null || true
 
 # Launch Chromium in kiosk mode
+# At 1440p, scale factor 1.333 gives 1080p-sized layout with crisper text
 while true; do
     chromium \
         --kiosk \
@@ -92,6 +110,8 @@ while true; do
         --autoplay-policy=no-user-gesture-required \
         --start-fullscreen \
         --window-position=0,0 \
+        --window-size=${CSS_W},${CSS_H} \
+        --force-device-scale-factor=${SCALE_FACTOR} \
         "$KIOSK_URL"
 
     # If Chromium crashes, wait 5s and restart
