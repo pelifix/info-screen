@@ -30,7 +30,7 @@ apt-get update -qq && apt-get upgrade -y -qq
 echo "[2/6] Installing packages..."
 apt-get install -y -qq \
     xserver-xorg x11-xserver-utils xinit \
-    chromium-browser \
+    chromium \
     unclutter \
     lightdm
 
@@ -79,7 +79,7 @@ sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' "$CHROMIUM_DIR/Preference
 
 # Launch Chromium in kiosk mode
 while true; do
-    chromium-browser \
+    chromium \
         --kiosk \
         --noerrdialogs \
         --disable-infobars \
