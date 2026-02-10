@@ -281,12 +281,8 @@ body.hide-cursor { cursor: none; }
 }
 
 /* Refresh indicator — EC logo */
-.clock-refresh {
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    margin-right: 14px;
-}
 .ec-refresh-wrap {
-    position: relative; width: 40px; height: 40px;
+    position: relative; width: 52px; height: 52px;
 }
 .ec-logo-bg, .ec-logo-fill {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -299,18 +295,22 @@ body.hide-cursor { cursor: none; }
     -webkit-mask-image: conic-gradient(from -90deg, #000 var(--progress), transparent var(--progress));
     mask-image: conic-gradient(from -90deg, #000 var(--progress), transparent var(--progress));
 }
-.ec-logo-fill.refreshing {
-    -webkit-mask-image: none; mask-image: none;
-    animation: ec-spin 1.2s linear infinite;
+.ec-logo-fill.ec-loading {
+    animation: ec-pulse 1s ease-in-out infinite;
 }
-@keyframes ec-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.ec-logo-fill.ec-soon {
+    animation: ec-glow 1.5s ease-in-out infinite;
+}
+@keyframes ec-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.92); } }
+@keyframes ec-glow {
+    0%, 100% { filter: drop-shadow(0 0 4px rgba(142, 178, 69, 0.4)); transform: scale(1); }
+    50% { filter: drop-shadow(0 0 18px rgba(142, 178, 69, 1)) drop-shadow(0 0 40px rgba(142, 178, 69, 0.5)); transform: scale(1.08); }
 }
 .refresh-label {
     font-family: var(--font-display); font-size: 0.7rem;
     color: var(--text-secondary); letter-spacing: 0.5px;
-    white-space: nowrap;
+    white-space: nowrap; text-align: right;
+    margin-top: 4px;
 }
 
 /* Weather */

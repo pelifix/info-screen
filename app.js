@@ -95,10 +95,18 @@
     function renderSourceStatus() {
         var el = document.getElementById('source-status');
         if (!el) return;
+        var anyLoading = false, anySoon = false;
         el.innerHTML = Object.keys(SOURCES).map(function(key) {
             var s = SOURCES[key];
+            if (s.status === 'loading') anyLoading = true;
+            if (s.status === 'soon') anySoon = true;
             return '<div class="source-dot"><div class="dot ' + s.status + '"></div>' + s.label + '</div>';
         }).join('');
+        // Sync EC logo pulse with source activity
+        if (ecLogoFill) {
+            ecLogoFill.classList.toggle('ec-loading', anyLoading);
+            ecLogoFill.classList.toggle('ec-soon', !anyLoading && anySoon);
+        }
     }
 
     renderSourceStatus();
