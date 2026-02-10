@@ -553,13 +553,18 @@
         CONFIG.webcams.forEach(function(wc) {
             liveImgs.push({ src: wc.src, caption: wc.caption, live: true });
         });
-        // Interleave: Bing, Live, Bing, Live, ...
+        // Distribute Bing images evenly among live images
         var images = [];
-        var bi = 0, li = 0;
-        while (bi < bingImgs.length || li < liveImgs.length) {
-            if (bi < bingImgs.length) images.push(bingImgs[bi++]);
-            if (li < liveImgs.length) images.push(liveImgs[li++]);
+        var gap = bingImgs.length > 0 ? Math.floor(liveImgs.length / bingImgs.length) : liveImgs.length;
+        if (gap < 1) gap = 1;
+        var bi = 0;
+        for (var li = 0; li < liveImgs.length; li++) {
+            images.push(liveImgs[li]);
+            if (bi < bingImgs.length && (li + 1) % gap === 0) {
+                images.push(bingImgs[bi++]);
+            }
         }
+        while (bi < bingImgs.length) images.push(bingImgs[bi++]);
         if (images.length) {
             buildSlideshow(images);
             setSource('bilder', 'ok');
