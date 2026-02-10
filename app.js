@@ -450,6 +450,9 @@
         }
     }
 
+    // Set all sources to loading on page load
+    Object.keys(SOURCES).forEach(function(key) { setSource(key, 'loading'); });
+
     // Stagger initial loads to avoid API rate limits
     var feedKeys = Object.keys(CONFIG.feeds);
     feedKeys.forEach(function(key, i) {
