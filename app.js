@@ -323,14 +323,23 @@
             if (!existing[candidate.title]) { item = candidate; break; }
         } while (feedQueueIndex !== startIdx);
         if (!item) return;
-        // New article is always the latest from its source — remove old badge if any
-        var oldLatest = feedTrack.querySelector('.article-latest[data-source="' + item.source + '"]');
-        if (oldLatest) {
-            oldLatest.classList.remove('article-latest');
-            var oldBadge = oldLatest.querySelector('.article-ny');
-            if (oldBadge) oldBadge.remove();
+        // Check if this article is the newest from its source (first occurrence in feedQueue)
+        var isNewest = true;
+        for (var qi = 0; qi < feedQueue.length; qi++) {
+            if (feedQueue[qi].source === item.source) {
+                if (feedQueue[qi].title !== item.title) isNewest = false;
+                break;
+            }
         }
-        var el = buildArticleEl(item, true);
+        if (isNewest) {
+            var oldLatest = feedTrack.querySelector('.article-latest[data-source="' + item.source + '"]');
+            if (oldLatest) {
+                oldLatest.classList.remove('article-latest');
+                var oldBadge = oldLatest.querySelector('.article-ny');
+                if (oldBadge) oldBadge.remove();
+            }
+        }
+        var el = buildArticleEl(item, isNewest);
         // Start collapsed and invisible
         el.style.maxHeight = '0';
         el.style.opacity = '0';
