@@ -168,7 +168,8 @@
         var secs = Math.ceil(remaining / 1000);
         var mins = Math.floor(secs / 60);
         var s = secs % 60;
-        refreshLabelEl.textContent = mins > 0 ? mins + ':' + String(s).padStart(2, '0') : secs + 's';
+        var time = mins > 0 ? mins + ':' + String(s).padStart(2, '0') : secs + 's';
+        refreshLabelEl.innerHTML = '<span class="refresh-prefix">news refresh in </span>' + time;
     }
     setInterval(updateRefreshRing, 1000);
     updateRefreshRing();

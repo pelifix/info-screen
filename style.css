@@ -288,7 +288,7 @@ body.hide-cursor { cursor: none; }
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
 }
 .ec-logo-bg {
-    opacity: 0.12; filter: grayscale(1) brightness(2);
+    opacity: 0.25; filter: grayscale(1) brightness(2.5);
 }
 .ec-logo-fill {
     --progress: 0deg;
@@ -311,6 +311,9 @@ body.hide-cursor { cursor: none; }
     color: var(--text-secondary); letter-spacing: 0.5px;
     white-space: nowrap; text-align: right;
     margin-top: 4px;
+}
+.refresh-prefix {
+    color: var(--text-dim);
 }
 
 /* Weather */
