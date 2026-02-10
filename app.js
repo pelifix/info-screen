@@ -280,6 +280,7 @@
         var div = document.createElement('div');
         div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
         div.setAttribute('data-source', item.source);
+        div.setAttribute('data-title', item.title);
         var imgHtml = item.image
             ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
             : '<div class="article-img no-image">\u{1F4F0}</div>';
@@ -304,13 +305,24 @@
 
     function renderFeed(items) {
         feedQueue = items.slice();
-        feedQueueIndex = 0;
+        if (feedQueueIndex >= feedQueue.length) feedQueueIndex = 0;
     }
 
     function scrollFeed() {
         if (!feedQueue.length) return;
-        if (feedQueueIndex >= feedQueue.length) feedQueueIndex = 0;
-        var item = feedQueue[feedQueueIndex];
+        // Find next article not already in the DOM
+        var existing = {};
+        feedTrack.querySelectorAll('.article').forEach(function(el) {
+            existing[el.getAttribute('data-title')] = true;
+        });
+        var startIdx = feedQueueIndex;
+        var item = null;
+        do {
+            var candidate = feedQueue[feedQueueIndex];
+            feedQueueIndex = (feedQueueIndex + 1) % feedQueue.length;
+            if (!existing[candidate.title]) { item = candidate; break; }
+        } while (feedQueueIndex !== startIdx);
+        if (!item) return;
         // New article is always the latest from its source — remove old badge if any
         var oldLatest = feedTrack.querySelector('.article-latest[data-source="' + item.source + '"]');
         if (oldLatest) {
@@ -338,7 +350,6 @@
             el.style.overflow = '';
             trimFeedOverflow();
         }, 900);
-        feedQueueIndex++;
     }
 
     function mergeFeedsAndRender() {
@@ -505,19 +516,17 @@
         var bingImgs = [];
         var liveImgs = [];
         try {
-            var bingUrl = CONFIG.corsProxy + encodeURIComponent('https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=5&mkt=en-US');
-            var resp = await fetch(bingUrl);
+            var bingRss = CONFIG.rssApi + encodeURIComponent('https://www.bing.com/HPImageArchive.aspx?format=rss&idx=0&n=3&mkt=en-US');
+            var resp = await fetch(bingRss);
             if (resp.ok) {
                 var data = await resp.json();
-                if (data.images && data.images.length) {
-                    data.images.forEach(function(img) {
-                        var copy = img.copyright || '';
-                        var caption = img.title || copy.split('(')[0].trim() || 'Bing';
-                        bingImgs.push({
-                            src: 'https://www.bing.com' + img.urlbase + '_1920x1080.jpg',
-                            caption: caption,
-                            live: false,
-                        });
+                if (data.status === 'ok' && data.items && data.items.length) {
+                    data.items.forEach(function(item) {
+                        var caption = (item.title || 'Bing').split('(')[0].trim();
+                        var imgUrl = (item.link || item.thumbnail || '').replace('http://', 'https://');
+                        if (imgUrl) {
+                            bingImgs.push({ src: imgUrl, caption: caption, live: false });
+                        }
                     });
                 }
             }
