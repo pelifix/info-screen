@@ -103,6 +103,7 @@ body.hide-cursor { cursor: none; }
 .hero-text {
     display: flex; flex-direction: column;
     justify-content: center; gap: 12px; min-width: 0;
+    min-height: 0; overflow: hidden;
 }
 .hero-source {
     font-family: var(--font-display); font-size: 0.9rem; font-weight: 600;
@@ -131,7 +132,7 @@ body.hide-cursor { cursor: none; }
 }
 .hero-desc {
     font-size: 1.35rem; line-height: 1.5; color: var(--text-secondary);
-    overflow: hidden;
+    flex: 1; min-height: 0; overflow: hidden;
 }
 .hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; }
 

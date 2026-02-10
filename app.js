@@ -112,6 +112,9 @@
         }
     }
 
+    /* ═══ REFRESH PROGRESS — EC LOGO ═══ */
+    var ecLogoFill = document.getElementById('ec-logo-fill');
+
     renderSourceStatus();
 
     /* ═══ HELPERS ═══ */
@@ -152,8 +155,6 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    /* ═══ REFRESH PROGRESS — EC LOGO ═══ */
-    var ecLogoFill = document.getElementById('ec-logo-fill');
     var refreshLabelEl = document.getElementById('clock-last-refresh');
     var feedCycleStart = Date.now();
 
@@ -995,6 +996,19 @@
     /* ═══ IMAGE SLIDESHOW LOADER ═══ */
     setTimeout(function() { loadImages(); }, 24000);
     setInterval(loadImages, CONFIG.imageRefresh);
+
+    /* ═══ KEYBOARD SHORTCUTS (for browser testing) ═══ */
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowRight') {
+            if (heroItems.length <= 1) return;
+            heroIndex = (heroIndex + 1) % heroItems.length;
+            renderHero(heroItems[heroIndex]);
+            updateHeroProgress();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            scrollFeed();
+        }
+    });
 
     /* ═══ CURSOR AUTO-HIDE ═══ */
     var cursorTimer = null;
