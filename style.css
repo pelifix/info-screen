@@ -207,6 +207,7 @@ body.hide-cursor { cursor: none; }
     -webkit-box-orient: vertical; overflow: hidden;
 }
 .article-time { font-size: 0.85rem; color: var(--text-dim); }
+.meta-sep { opacity: 1; margin: 0 6px; font-size: 1.2em; font-weight: 700; }
 
 .article-img {
     width: 200px; height: 125px; border-radius: var(--radius-sm);

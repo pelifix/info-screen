@@ -171,6 +171,15 @@
     setInterval(updateRefreshRing, 1000);
     updateRefreshRing();
 
+    function formatTimeCats(item) {
+        var parts = [];
+        if (item.pubDate) parts.push(timeAgo(item.pubDate));
+        if (item.categories && item.categories.length) {
+            item.categories.forEach(function(c) { parts.push(escapeHtml(c)); });
+        }
+        return parts.join(' <span class="meta-sep">\u00b7</span> ');
+    }
+
     /* ═══ NEWS FEED ═══ */
     var heroEl = document.getElementById('hero-story');
     var feedTrack = document.getElementById('feed-track');
@@ -203,7 +212,7 @@
                 '<div class="hero-source ' + colorClass + '">' + badgeText + '</div>' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
                 (item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
-                '<div class="hero-time">' + (item.pubDate ? timeAgo(item.pubDate) : '') + '</div>' +
+                '<div class="hero-time">' + formatTimeCats(item) + '</div>' +
             '</div>';
 
         var cards = heroEl.querySelectorAll('.hero-card');
@@ -282,7 +291,7 @@
                     '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
                     (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
-                    '<div class="article-time">' + (item.pubDate ? timeAgo(item.pubDate) : '') + '</div>' +
+                    '<div class="article-time">' + formatTimeCats(item) + '</div>' +
                 '</div>';
             feedTrack.appendChild(div);
         });
@@ -381,13 +390,18 @@
             if (!resp.ok) throw new Error('Feed fetch failed: ' + type);
             var data = await resp.json();
             if (data.status !== 'ok' || !data.items || !data.items.length) throw new Error('No items in feed: ' + type);
+            var skipCats = {'nyheter':1,'news':1,'ukategorisert':1,'uncategorized':1,'allmennt':1};
             rawFeeds[type] = data.items.slice(0, 15).map(function(item) {
+                var cats = (item.categories || [])
+                    .filter(function(c) { return c && !skipCats[c.toLowerCase().trim()]; })
+                    .slice(0, 3);
                 return {
                     title: item.title || '',
                     desc: (item.description || '').replace(/<[^>]*>/g, ''),
                     pubDate: item.pubDate || '',
                     image: item.thumbnail || (item.enclosure && item.enclosure.link) || null,
                     source: type,
+                    categories: cats,
                 };
             }).filter(function(a) { return a.title; });
             mergeFeedsAndRender();
