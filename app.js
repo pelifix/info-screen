@@ -141,29 +141,21 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    /* ═══ REFRESH PROGRESS RING ═══ */
-    var refreshRingEl = document.getElementById('refresh-ring-fill');
-    var refreshArrowEl = document.getElementById('refresh-arrow');
+    /* ═══ REFRESH PROGRESS — EC LOGO ═══ */
+    var ecLogoFill = document.getElementById('ec-logo-fill');
     var refreshLabelEl = document.getElementById('clock-last-refresh');
-    var RING_CIRCUMFERENCE = 2 * Math.PI * 14; // r=14
     var feedCycleStart = Date.now();
 
     function resetFeedCycle() { feedCycleStart = Date.now(); }
 
     function updateRefreshRing() {
-        if (!refreshRingEl) return;
+        if (!ecLogoFill) return;
         var elapsed = Date.now() - feedCycleStart;
         var remaining = CONFIG.feedRefresh - elapsed;
         if (remaining <= 0) remaining = 0;
         var progress = Math.min(elapsed / CONFIG.feedRefresh, 1);
-        var offset = RING_CIRCUMFERENCE * (1 - progress);
-        refreshRingEl.style.strokeDashoffset = offset;
-        // Rotate arrowhead to leading edge of arc
-        if (refreshArrowEl) {
-            var angle = progress * 360;
-            refreshArrowEl.setAttribute('transform', 'rotate(' + angle + ', 18, 18)');
-            refreshArrowEl.style.opacity = progress < 0.03 ? '0' : '1';
-        }
+        var angle = progress * 360;
+        ecLogoFill.style.setProperty('--progress', angle + 'deg');
         // Countdown text
         var secs = Math.ceil(remaining / 1000);
         var mins = Math.floor(secs / 60);
