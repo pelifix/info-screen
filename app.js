@@ -109,7 +109,9 @@
     var monShort = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'];
 
     function timeAgo(dateStr) {
-        var diff = Date.now() - new Date(dateStr).getTime();
+        var d = dateStr;
+        if (d && !/[Z+\-]\d/.test(d.slice(-6))) d += 'Z';
+        var diff = Date.now() - new Date(d).getTime();
         var mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Akkurat n\u00e5';
         if (mins < 60) return mins + ' min siden';
@@ -270,39 +272,61 @@
         }
     }
 
-    function renderFeed(items) {
+    var lastFeedKey = '';
+    function renderFeed(items, force) {
+        var newKey = items.map(function(it) { return it.title; }).join('|');
+        var isFirstRender = !lastFeedKey;
+        if (!force && newKey === lastFeedKey) return;
+        lastFeedKey = newKey;
+        var savedScrollPos = feedScrollPos;
         feedTrack.innerHTML = '';
-        feedScrollPos = 0;
         if (!items.length) {
+            feedScrollPos = 0;
             feedTrack.innerHTML = '<div style="padding:40px 32px;color:var(--text-dim);font-size:1.1rem;">Laster nyheter&hellip;</div>';
             feedTrack.style.transform = 'translateY(0)';
             return;
         }
+        var seenSources = new Set();
         items.forEach(function(item, i) {
             var meta = FEED_META[item.source];
             var colorClass = meta ? meta.color : '';
+            var isLatest = !seenSources.has(item.source);
+            if (isLatest) seenSources.add(item.source);
             var div = document.createElement('div');
-            div.className = 'article';
+            div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
             var imgHtml = item.image
                 ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="' + (i < 4 ? 'eager' : 'lazy') + '"></div>'
                 : '<div class="article-img no-image">\u{1F4F0}</div>';
+            var nyBadge = isLatest ? '<span class="article-ny">NY</span>' : '';
             div.innerHTML = imgHtml +
                 '<div class="article-text">' +
-                    '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' +
+                    '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
                     (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                     '<div class="article-time">' + formatTimeCats(item) + '</div>' +
                 '</div>';
             feedTrack.appendChild(div);
         });
-        // Start scrolled to bottom (snapped to article boundary), scroll up
         var maxScroll = feedTrack.scrollHeight - feedTrack.parentElement.clientHeight;
         var step = 160;
         var snappedMax = Math.floor(maxScroll / step) * step;
-        feedTrack.style.transition = 'none';
-        feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
-        void feedTrack.offsetWidth;
-        feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+        if (isFirstRender) {
+            // First render: start scrolled to bottom
+            feedScrollPos = 0;
+            feedTrack.style.transition = 'none';
+            feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
+            void feedTrack.offsetWidth;
+            feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+        } else {
+            // Subsequent renders: preserve scroll position
+            feedScrollPos = savedScrollPos;
+            var offset = snappedMax - (feedScrollPos * step);
+            if (offset < 0) { feedScrollPos = 0; offset = snappedMax; }
+            feedTrack.style.transition = 'none';
+            feedTrack.style.transform = 'translateY(-' + offset + 'px)';
+            void feedTrack.offsetWidth;
+            feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+        }
     }
 
     function scrollFeed() {
@@ -329,7 +353,7 @@
         merged.sort(function(a, b) { return new Date(b.pubDate || 0) - new Date(a.pubDate || 0); });
         var seen = {};
         var all = [];
-        for (var i = 0; i < merged.length && all.length < 30; i++) {
+        for (var i = 0; i < merged.length; i++) {
             var key = merged[i].title.toLowerCase().trim();
             if (seen[key]) continue;
             seen[key] = true;
@@ -359,7 +383,7 @@
         var sources = Object.keys(bySource);
         feedItems = [];
         var si = 0;
-        while (feedItems.length < 20 && sources.length) {
+        while (sources.length) {
             var s = sources[si % sources.length];
             if (bySource[s].length) {
                 feedItems.push(bySource[s].shift());

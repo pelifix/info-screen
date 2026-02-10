@@ -208,6 +208,20 @@ body.hide-cursor { cursor: none; }
 }
 .article-time { font-size: 0.85rem; color: var(--text-dim); }
 .meta-sep { opacity: 1; margin: 0 6px; font-size: 1.2em; font-weight: 700; }
+.article-latest { border-left: 3px solid var(--accent); }
+.article-latest.src-nrk { border-left-color: var(--src-nrk); }
+.article-latest.src-nrk-sport { border-left-color: var(--src-nrk-sport); }
+.article-latest.src-e24 { border-left-color: var(--src-e24); }
+.article-latest.src-aftenbladet { border-left-color: var(--src-aftenbladet); }
+.article-latest.src-vg { border-left-color: var(--src-vg); }
+.article-latest.src-vg-sport { border-left-color: var(--src-vg-sport); }
+.article-latest.src-dn { border-left-color: var(--src-dn); }
+.article-ny {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 1px;
+    margin-left: 8px; padding: 2px 6px; border-radius: 3px;
+    border: 1px solid currentColor;
+    display: inline-block; vertical-align: middle;
+}
 
 .article-img {
     width: 200px; height: 125px; border-radius: var(--radius-sm);
