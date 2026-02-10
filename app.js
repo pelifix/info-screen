@@ -537,7 +537,7 @@
         var liveImgs = [];
         try {
             var bingRss = CONFIG.rssApi + encodeURIComponent('https://www.bing.com/HPImageArchive.aspx?format=rss&idx=0&n=3&mkt=en-US');
-            var resp = await fetch(bingRss);
+            var resp = await fetch(bingRss, { cache: 'no-store' });
             if (resp.ok) {
                 var data = await resp.json();
                 if (data.status === 'ok' && data.items && data.items.length) {
@@ -648,7 +648,7 @@
 
     async function scrapeKonserthus() {
         var url = CONFIG.corsProxy + encodeURIComponent('https://www.stavanger-konserthus.no/program/');
-        var resp = await fetch(url);
+        var resp = await fetch(url, { cache: 'no-store' });
         if (!resp.ok) throw new Error('Konserthus fetch failed');
         var html = await resp.text();
         var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -675,7 +675,7 @@
 
     async function scrapeFolken() {
         var url = CONFIG.corsProxy + encodeURIComponent('https://www.folken.no/folken/index.php');
-        var resp = await fetch(url);
+        var resp = await fetch(url, { cache: 'no-store' });
         if (!resp.ok) throw new Error('Folken fetch failed');
         var html = await resp.text();
         var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -789,6 +789,7 @@
         try {
             var resp = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
                 method: 'POST',
+                cache: 'no-store',
                 headers: {
                     'Content-Type': 'application/json',
                     'ET-Client-Name': 'pelifix-infoscreen',
@@ -883,7 +884,7 @@
             // Fetch exchange rates from Norges Bank
             var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=2';
             var url = CONFIG.corsProxy + encodeURIComponent(nbUrl);
-            var resp = await fetch(url);
+            var resp = await fetch(url, { cache: 'no-store' });
             if (!resp.ok) throw new Error('Norges Bank API failed');
             var data = await resp.json();
 
@@ -966,7 +967,7 @@
         setSource('vaer', 'loading');
         try {
             var url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=' + CONFIG.weatherLat + '&lon=' + CONFIG.weatherLon;
-            var resp = await fetch(url, { headers: { 'User-Agent': 'PelifixInfoScreen/1.0' } });
+            var resp = await fetch(url, { cache: 'no-store', headers: { 'User-Agent': 'PelifixInfoScreen/1.0' } });
             if (!resp.ok) throw new Error('Weather failed');
             var data = await resp.json();
             var ts = data.properties.timeseries[0];
