@@ -16,11 +16,11 @@
             dn: 'https://services.dn.no/api/feed/rss/',
         },
         feedRefresh: 5 * 60 * 1000,
-        feedScrollInterval: 5000,
+        feedScrollInterval: 6000,
         tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 10000,
-        heroCount: 5,
+        heroCount: 7,
         weatherLat: 58.97,
         weatherLon: 5.73,
         weatherLocation: 'Stavanger, Norge',
@@ -186,7 +186,6 @@
     var heroEl = document.getElementById('hero-story');
     var feedTrack = document.getElementById('feed-track');
     var feedItems = [];
-    var feedScrollPos = 0;
     var currentHeroTitle = '';
     var heroItems = [];
     var heroIndex = 0;
@@ -211,7 +210,7 @@
                 imgContent +
             '</div>' +
             '<div class="hero-text">' +
-                '<div class="hero-source ' + colorClass + '">' + badgeText + '</div>' +
+                '<div class="hero-source ' + colorClass + '">' + badgeText + '<span class="hero-top-badge">TOPP</span></div>' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
                 (item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                 '<div class="hero-time">' + formatTimeCats(item) + '</div>' +
@@ -272,79 +271,74 @@
         }
     }
 
-    var lastFeedKey = '';
-    function renderFeed(items, force) {
-        var newKey = items.map(function(it) { return it.title; }).join('|');
-        var isFirstRender = !lastFeedKey;
-        if (!force && newKey === lastFeedKey) return;
-        lastFeedKey = newKey;
-        var savedScrollPos = feedScrollPos;
-        feedTrack.innerHTML = '';
-        if (!items.length) {
-            feedScrollPos = 0;
-            feedTrack.innerHTML = '<div style="padding:40px 32px;color:var(--text-dim);font-size:1.1rem;">Laster nyheter&hellip;</div>';
-            feedTrack.style.transform = 'translateY(0)';
-            return;
-        }
-        var seenSources = new Set();
-        items.forEach(function(item, i) {
-            var meta = FEED_META[item.source];
-            var colorClass = meta ? meta.color : '';
-            var isLatest = !seenSources.has(item.source);
-            if (isLatest) seenSources.add(item.source);
-            var div = document.createElement('div');
-            div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
-            var imgHtml = item.image
-                ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="' + (i < 4 ? 'eager' : 'lazy') + '"></div>'
-                : '<div class="article-img no-image">\u{1F4F0}</div>';
-            var nyBadge = isLatest ? '<span class="article-ny">NY</span>' : '';
-            div.innerHTML = imgHtml +
-                '<div class="article-text">' +
-                    '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
-                    '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
-                    (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
-                    '<div class="article-time">' + formatTimeCats(item) + '</div>' +
-                '</div>';
-            feedTrack.appendChild(div);
-        });
-        var maxScroll = feedTrack.scrollHeight - feedTrack.parentElement.clientHeight;
-        var step = 160;
-        var snappedMax = Math.floor(maxScroll / step) * step;
-        if (isFirstRender) {
-            // First render: start scrolled to bottom
-            feedScrollPos = 0;
-            feedTrack.style.transition = 'none';
-            feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
-            void feedTrack.offsetWidth;
-            feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
-        } else {
-            // Subsequent renders: preserve scroll position
-            feedScrollPos = savedScrollPos;
-            var offset = snappedMax - (feedScrollPos * step);
-            if (offset < 0) { feedScrollPos = 0; offset = snappedMax; }
-            feedTrack.style.transition = 'none';
-            feedTrack.style.transform = 'translateY(-' + offset + 'px)';
-            void feedTrack.offsetWidth;
-            feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+    var feedQueue = [];
+    var feedQueueIndex = 0;
+
+    function buildArticleEl(item, isLatest) {
+        var meta = FEED_META[item.source];
+        var colorClass = meta ? meta.color : '';
+        var div = document.createElement('div');
+        div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
+        div.setAttribute('data-source', item.source);
+        var imgHtml = item.image
+            ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
+            : '<div class="article-img no-image">\u{1F4F0}</div>';
+        var nyBadge = isLatest ? '<span class="article-ny">NY</span>' : '';
+        div.innerHTML = imgHtml +
+            '<div class="article-text">' +
+                '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
+                '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
+                (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
+                '<div class="article-time">' + formatTimeCats(item) + '</div>' +
+            '</div>';
+        return div;
+    }
+
+    function trimFeedOverflow() {
+        var articles = feedTrack.querySelectorAll('.article');
+        while (articles.length > 10) {
+            articles[articles.length - 1].remove();
+            articles = feedTrack.querySelectorAll('.article');
         }
     }
 
+    function renderFeed(items) {
+        feedQueue = items.slice();
+        feedQueueIndex = 0;
+    }
+
     function scrollFeed() {
-        if (feedItems.length <= 4) return;
-        var maxScroll = feedTrack.scrollHeight - feedTrack.parentElement.clientHeight;
-        var step = 160;
-        var snappedMax = Math.floor(maxScroll / step) * step;
-        feedScrollPos++;
-        var offset = snappedMax - (feedScrollPos * step);
-        if (offset <= 0) {
-            feedScrollPos = 0;
-            feedTrack.style.transition = 'none';
-            feedTrack.style.transform = 'translateY(-' + snappedMax + 'px)';
-            void feedTrack.offsetWidth;
-            feedTrack.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
-            return;
+        if (!feedQueue.length) return;
+        if (feedQueueIndex >= feedQueue.length) feedQueueIndex = 0;
+        var item = feedQueue[feedQueueIndex];
+        // New article is always the latest from its source — remove old badge if any
+        var oldLatest = feedTrack.querySelector('.article-latest[data-source="' + item.source + '"]');
+        if (oldLatest) {
+            oldLatest.classList.remove('article-latest');
+            var oldBadge = oldLatest.querySelector('.article-ny');
+            if (oldBadge) oldBadge.remove();
         }
-        feedTrack.style.transform = 'translateY(-' + offset + 'px)';
+        var el = buildArticleEl(item, true);
+        // Start collapsed and invisible
+        el.style.maxHeight = '0';
+        el.style.opacity = '0';
+        el.style.overflow = 'hidden';
+        el.style.padding = '0 32px';
+        feedTrack.insertBefore(el, feedTrack.firstChild);
+        void el.offsetWidth;
+        // Expand to full height, then fade in content
+        el.style.transition = 'max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease 0.3s, padding 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+        el.style.maxHeight = '300px';
+        el.style.opacity = '1';
+        el.style.padding = '16px 32px';
+        // Clean up inline styles after animation
+        setTimeout(function() {
+            el.style.transition = '';
+            el.style.maxHeight = '';
+            el.style.overflow = '';
+            trimFeedOverflow();
+        }, 900);
+        feedQueueIndex++;
     }
 
     function mergeFeedsAndRender() {
