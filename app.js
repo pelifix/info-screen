@@ -14,13 +14,14 @@
             vg: 'https://www.vg.no/rss/feed/',
             vgSport: 'https://www.vg.no/rss/feed/?categories=sport',
             dn: 'https://services.dn.no/api/feed/rss/',
+            tu: 'https://www.tu.no/rss',
         },
         feedRefresh: 5 * 60 * 1000,
         feedScrollInterval: 6000,
         tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 10000,
-        heroCount: 7,
+        heroCount: 8,
         weatherLat: 58.97,
         weatherLon: 5.73,
         weatherLocation: 'Stavanger, Norge',
@@ -50,6 +51,7 @@
         vg:          { label: 'VG',          status: 'pending', refresh: CONFIG.feedRefresh },
         vgSport:     { label: 'VG Sport',    status: 'pending', refresh: CONFIG.feedRefresh },
         dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh },
+        tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
@@ -68,6 +70,7 @@
         vg:          { srcKey: 'vg',          label: 'VG',          color: 'src-vg' },
         vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    color: 'src-vg-sport' },
         dn:          { srcKey: 'dn',          label: 'DN',          color: 'src-dn' },
+        tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
     };
 
     var lastRefreshTime = null;
@@ -366,6 +369,18 @@
         var merged = [];
         Object.keys(rawFeeds).forEach(function(key) { merged = merged.concat(rawFeeds[key]); });
         merged.sort(function(a, b) { return new Date(b.pubDate || 0) - new Date(a.pubDate || 0); });
+
+        // Hero: newest article from each source (before dedup so NTB dupes don't steal slots)
+        heroItems = [];
+        var heroSeen = {};
+        for (var h = 0; h < merged.length && heroItems.length < CONFIG.heroCount; h++) {
+            var src = merged[h].source || '';
+            if (heroSeen[src]) continue;
+            heroSeen[src] = true;
+            heroItems.push(merged[h]);
+        }
+
+        // Deduplicate by title for feed + ticker
         var seen = {};
         var all = [];
         for (var i = 0; i < merged.length; i++) {
@@ -375,15 +390,6 @@
             all.push(merged[i]);
         }
         if (!all.length) return;
-
-        // Hero: newest articles, max 2 per source
-        heroItems = [];
-        var heroSourceCount = {};
-        for (var h = 0; h < all.length && heroItems.length < CONFIG.heroCount; h++) {
-            var src = all[h].source || '';
-            heroSourceCount[src] = (heroSourceCount[src] || 0) + 1;
-            if (heroSourceCount[src] <= 2) heroItems.push(all[h]);
-        }
 
         // Feed: interleave sources for variety
         var heroSet = {};
@@ -425,7 +431,7 @@
         setSource(srcKey, 'loading');
         try {
             var url = CONFIG.rssApi + encodeURIComponent(CONFIG.feeds[type]);
-            var resp = await fetch(url);
+            var resp = await fetch(url, { cache: 'no-store' });
             if (!resp.ok) throw new Error('Feed fetch failed: ' + type);
             var data = await resp.json();
             if (data.status !== 'ok' || !data.items || !data.items.length) throw new Error('No items in feed: ' + type);
@@ -434,8 +440,9 @@
                 var cats = (item.categories || [])
                     .filter(function(c) { return c && !skipCats[c.toLowerCase().trim()]; })
                     .slice(0, 3);
+                var title = (item.title || '').replace(/^\[.*?\]\s*/, '');
                 return {
-                    title: item.title || '',
+                    title: title,
                     desc: (item.description || '').replace(/<[^>]*>/g, ''),
                     pubDate: item.pubDate || '',
                     image: item.thumbnail || (item.enclosure && item.enclosure.link) || null,

@@ -10,6 +10,7 @@
     --src-vg: #f87171;
     --src-vg-sport: #f472b6;
     --src-dn: #a78bfa;
+    --src-tu: #facc15;
     --bg-deep: #08090c;
     --bg-panel: #0f1115;
     --bg-card: #161920;
@@ -97,6 +98,7 @@ body.hide-cursor { cursor: none; }
 .hero-badge.src-vg { background: var(--src-vg); color: var(--bg-deep); }
 .hero-badge.src-vg-sport { background: var(--src-vg-sport); color: var(--bg-deep); }
 .hero-badge.src-dn { background: var(--src-dn); color: var(--bg-deep); }
+.hero-badge.src-tu { background: var(--src-tu); color: var(--bg-deep); }
 
 .hero-text {
     display: flex; flex-direction: column;
@@ -113,6 +115,7 @@ body.hide-cursor { cursor: none; }
 .hero-source.src-vg { color: var(--src-vg); }
 .hero-source.src-vg-sport { color: var(--src-vg-sport); }
 .hero-source.src-dn { color: var(--src-dn); }
+.hero-source.src-tu { color: var(--src-tu); }
 .hero-top-badge {
     font-size: 0.65rem; font-weight: 700; letter-spacing: 1px;
     margin-left: 10px; padding: 2px 8px; border-radius: 3px;
@@ -185,6 +188,7 @@ body.hide-cursor { cursor: none; }
 .article-source.src-vg { color: var(--src-vg); }
 .article-source.src-vg-sport { color: var(--src-vg-sport); }
 .article-source.src-dn { color: var(--src-dn); }
+.article-source.src-tu { color: var(--src-tu); }
 
 .article-title {
     font-family: var(--font-display); font-size: 1.35rem; font-weight: 600;
@@ -207,6 +211,7 @@ body.hide-cursor { cursor: none; }
 .article-latest.src-vg { border-left-color: var(--src-vg); }
 .article-latest.src-vg-sport { border-left-color: var(--src-vg-sport); }
 .article-latest.src-dn { border-left-color: var(--src-dn); }
+.article-latest.src-tu { border-left-color: var(--src-tu); }
 .article-ny {
     font-size: 0.6rem; font-weight: 700; letter-spacing: 1px;
     margin-left: 8px; padding: 2px 6px; border-radius: 3px;
