@@ -229,11 +229,14 @@
         void newCard.offsetWidth;
         newCard.classList.add('active');
 
-        for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('active'); }
+        for (var i = 0; i < cards.length; i++) {
+            cards[i].classList.remove('active');
+            cards[i].classList.add('exit');
+        }
         setTimeout(function() {
-            var old = heroEl.querySelectorAll('.hero-card:not(.active)');
+            var old = heroEl.querySelectorAll('.hero-card.exit');
             for (var j = 0; j < old.length; j++) { old[j].parentNode.removeChild(old[j]); }
-        }, 1200);
+        }, 800);
     }
 
     function renderHeroProgress() {
