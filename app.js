@@ -180,10 +180,10 @@
 
     function formatTimeCats(item) {
         var parts = [];
-        if (item.pubDate) parts.push(timeAgo(item.pubDate));
         if (item.categories && item.categories.length) {
             item.categories.forEach(function(c) { parts.push(escapeHtml(c)); });
         }
+        if (item.pubDate) parts.push(timeAgo(item.pubDate));
         return parts.join(' <span class="meta-sep">\u00b7</span> ');
     }
 
@@ -290,22 +290,35 @@
             ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
             : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<span class="article-ny">NY</span>' : '';
-        div.innerHTML = imgHtml +
-            '<div class="article-text">' +
-                '<div class="article-source ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
-                '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
-                (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
-                '<div class="article-time">' + formatTimeCats(item) + '</div>' +
+        var imgWithBadge = '<div class="article-img-wrap">' +
+                imgHtml +
+                '<div class="article-source-overlay ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
+            '</div>';
+        div.innerHTML =
+            '<div class="article-body">' +
+                imgWithBadge +
+                '<div class="article-text">' +
+                    '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
+                    '<div class="article-bottom">' +
+                        (item.desc ? '<span class="article-desc">' + escapeHtml(item.desc) + '</span>' : '') +
+                        '<span class="article-time">' + formatTimeCats(item) + '</span>' +
+                    '</div>' +
+                '</div>' +
             '</div>';
         return div;
     }
 
+    var feedCols = [document.getElementById('feed-col-0'), document.getElementById('feed-col-1')];
+    var nextCol = 0;
+
     function trimFeedOverflow() {
-        var articles = feedTrack.querySelectorAll('.article');
-        while (articles.length > 10) {
-            articles[articles.length - 1].remove();
-            articles = feedTrack.querySelectorAll('.article');
-        }
+        feedCols.forEach(function(col) {
+            var articles = col.querySelectorAll('.article');
+            while (articles.length > 6) {
+                articles[articles.length - 1].remove();
+                articles = col.querySelectorAll('.article');
+            }
+        });
     }
 
     function renderFeed(items) {
@@ -315,10 +328,12 @@
 
     function scrollFeed() {
         if (!feedQueue.length) return;
-        // Find next article not already in the DOM
+        // Find next article not already in either column
         var existing = {};
-        feedTrack.querySelectorAll('.article').forEach(function(el) {
-            existing[el.getAttribute('data-title')] = true;
+        feedCols.forEach(function(col) {
+            col.querySelectorAll('.article').forEach(function(el) {
+                existing[el.getAttribute('data-title')] = true;
+            });
         });
         var startIdx = feedQueueIndex;
         var item = null;
@@ -337,26 +352,31 @@
             }
         }
         if (isNewest) {
-            var oldLatest = feedTrack.querySelector('.article-latest[data-source="' + item.source + '"]');
-            if (oldLatest) {
-                oldLatest.classList.remove('article-latest');
-                var oldBadge = oldLatest.querySelector('.article-ny');
-                if (oldBadge) oldBadge.remove();
-            }
+            // Search both columns for old badge
+            feedCols.forEach(function(col) {
+                var oldLatest = col.querySelector('.article-latest[data-source="' + item.source + '"]');
+                if (oldLatest) {
+                    oldLatest.classList.remove('article-latest');
+                    var oldBadge = oldLatest.querySelector('.article-ny');
+                    if (oldBadge) oldBadge.remove();
+                }
+            });
         }
+        var col = feedCols[nextCol];
+        nextCol = (nextCol + 1) % 2;
         var el = buildArticleEl(item, isNewest);
         // Start collapsed and invisible
         el.style.maxHeight = '0';
         el.style.opacity = '0';
         el.style.overflow = 'hidden';
-        el.style.padding = '0 32px';
-        feedTrack.insertBefore(el, feedTrack.firstChild);
+        el.style.padding = '0 16px';
+        col.insertBefore(el, col.firstChild);
         void el.offsetWidth;
         // Expand to full height, then fade in content
         el.style.transition = 'max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease 0.3s, padding 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
-        el.style.maxHeight = '300px';
+        el.style.maxHeight = '400px';
         el.style.opacity = '1';
-        el.style.padding = '16px 32px';
+        el.style.padding = '14px 16px';
         // Clean up inline styles after animation
         setTimeout(function() {
             el.style.transition = '';
