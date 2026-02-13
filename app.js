@@ -403,18 +403,22 @@
         // Hero: newest article from each source (before dedup so NTB dupes don't steal slots)
         heroItems = [];
         var heroSeen = {};
+        var heroTitles = {};
         for (var h = 0; h < merged.length && heroItems.length < CONFIG.heroCount; h++) {
             var src = merged[h].source || '';
             if (heroSeen[src]) continue;
+            var heroKey = merged[h].title.toLowerCase().trim().replace(/[\s\u2013\u2014\-–—:]+/g, ' ');
+            if (heroTitles[heroKey]) continue;
             heroSeen[src] = true;
+            heroTitles[heroKey] = true;
             heroItems.push(merged[h]);
         }
 
-        // Deduplicate by title for feed + ticker
+        // Deduplicate by normalized title for feed + ticker
         var seen = {};
         var all = [];
         for (var i = 0; i < merged.length; i++) {
-            var key = merged[i].title.toLowerCase().trim();
+            var key = merged[i].title.toLowerCase().trim().replace(/[\s\u2013\u2014\-–—:]+/g, ' ');
             if (seen[key]) continue;
             seen[key] = true;
             all.push(merged[i]);
