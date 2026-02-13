@@ -141,7 +141,7 @@ body.hide-cursor { cursor: none; }
     -webkit-box-orient: vertical; overflow: hidden;
 }
 .hero-desc {
-    font-size: 1.35rem; line-height: 1.5; color: var(--text-secondary);
+    font-size: 1.6rem; line-height: 1.5; color: var(--text-secondary);
     flex: 1; min-height: 0; overflow: hidden;
 }
 .hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; text-align: right; }

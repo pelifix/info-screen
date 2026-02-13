@@ -17,10 +17,10 @@
             tu: 'https://www.tu.no/rss',
         },
         feedRefresh: 5 * 60 * 1000,
-        feedScrollInterval: 6000,
+        feedScrollInterval: 7000,
         tickerSpeed: 100,
         slideInterval: 12000,
-        heroInterval: 10000,
+        heroInterval: 11000,
         heroCount: 8,
         weatherLat: 58.97,
         weatherLon: 5.73,
@@ -231,7 +231,7 @@
         // Dynamically shrink hero description font if text overflows
         var heroDesc = newCard.querySelector('.hero-desc');
         if (heroDesc) {
-            var fontSize = 1.35;
+            var fontSize = 1.6;
             var minSize = 0.95;
             var step = 0.05;
             while (fontSize > minSize && heroDesc.scrollHeight > heroDesc.clientHeight) {
