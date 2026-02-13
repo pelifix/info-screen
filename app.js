@@ -1677,12 +1677,12 @@
             var lastWeek = fmtDateLocal(lastWeekDay);
 
             var baseUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource;
-            var filtersToday = '{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + today + 'T00:00:00"}';
-            var filtersLw = '{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + lastWeek + 'T00:00:00"}';
+            var filtersToday = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + today + 'T00:00:00"}');
+            var filtersLw = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + lastWeek + 'T00:00:00"}');
 
             // Fetch today + last week in parallel (via CORS proxy)
-            var todayUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id asc');
-            var lwUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id asc');
+            var todayUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id+asc');
+            var lwUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id+asc');
 
             function fetchJson(url) {
                 return fetch(url).then(function(r) {
