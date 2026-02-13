@@ -1680,9 +1680,9 @@
             var filtersToday = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + today + 'T00:00:00"}');
             var filtersLw = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + lastWeek + 'T00:00:00"}');
 
-            // Fetch today + last week in parallel (via CORS proxy)
-            var todayUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id+asc');
-            var lwUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id+asc');
+            // Try direct fetch first, fall back to CORS proxy
+            var todayDirect = baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id+asc';
+            var lwDirect = baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id+asc';
 
             function fetchJson(url) {
                 return fetch(url).then(function(r) {
@@ -1694,9 +1694,16 @@
                 });
             }
 
+            function fetchWithFallback(directUrl) {
+                return fetchJson(directUrl).catch(function(e) {
+                    console.warn('Bike count direct failed (' + e.message + '), trying proxy');
+                    return fetchJson(CONFIG.corsProxy + encodeURIComponent(directUrl));
+                });
+            }
+
             var results = await Promise.all([
-                fetchJson(todayUrl).catch(function(e) { console.warn('Bike count today fetch failed:', e.message); return { result: { records: [] } }; }),
-                fetchJson(lwUrl).catch(function(e) { console.warn('Bike count lastWeek fetch failed:', e.message); return { result: { records: [] } }; }),
+                fetchWithFallback(todayDirect).catch(function(e) { console.warn('Bike count today failed:', e.message); return { result: { records: [] } }; }),
+                fetchWithFallback(lwDirect).catch(function(e) { console.warn('Bike count lastWeek failed:', e.message); return { result: { records: [] } }; }),
             ]);
 
             var todayRecords = results[0].result ? results[0].result.records : [];
