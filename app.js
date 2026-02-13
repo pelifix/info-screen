@@ -1676,42 +1676,26 @@
             var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
             var lastWeek = fmtDateLocal(lastWeekDay);
 
-            var baseUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource;
-            var filtersToday = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + today + 'T00:00:00"}');
-            var filtersLw = encodeURIComponent('{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + lastWeek + 'T00:00:00"}');
+            // Simple URL — fetch recent records via CORS proxy, filter client-side
+            var apiUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource + '&limit=500&sort=_id+desc';
+            var proxyUrl = CONFIG.corsProxy + encodeURIComponent(apiUrl);
 
-            // Try direct fetch first, fall back to CORS proxy
-            var todayDirect = baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id+asc';
-            var lwDirect = baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id+asc';
+            var resp = await fetch(proxyUrl);
+            if (!resp.ok) throw new Error('Bike count proxy HTTP ' + resp.status);
+            var text = await resp.text();
+            var data;
+            try { data = JSON.parse(text); }
+            catch (e) { throw new Error('Bike count not JSON: ' + text.substring(0, 100)); }
 
-            function fetchJson(url) {
-                return fetch(url).then(function(r) {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.text();
-                }).then(function(text) {
-                    try { return JSON.parse(text); }
-                    catch (e) { throw new Error('Not JSON: ' + text.substring(0, 100)); }
-                });
-            }
+            var allRecords = data.result ? data.result.records : [];
 
-            function fetchWithFallback(directUrl) {
-                return fetchJson(directUrl).catch(function(e) {
-                    console.warn('Bike count direct failed (' + e.message + '), trying proxy');
-                    return fetchJson(CONFIG.corsProxy + encodeURIComponent(directUrl));
-                });
-            }
-
-            var results = await Promise.all([
-                fetchWithFallback(todayDirect).catch(function(e) { console.warn('Bike count today failed:', e.message); return { result: { records: [] } }; }),
-                fetchWithFallback(lwDirect).catch(function(e) { console.warn('Bike count lastWeek failed:', e.message); return { result: { records: [] } }; }),
-            ]);
-
-            var todayRecords = results[0].result ? results[0].result.records : [];
-            var lwRecords = results[1].result ? results[1].result.records : [];
+            // Filter client-side by date
+            var todayRecords = allRecords.filter(function(r) { return r.Date && r.Date.indexOf(today) === 0; });
+            var lwRecords = allRecords.filter(function(r) { return r.Date && r.Date.indexOf(lastWeek) === 0; });
 
             bikeCountHours = parseBikeCountRecords(todayRecords);
             bikeCountLastWeek = parseBikeCountRecords(lwRecords);
-            console.log('Bike count: today=' + todayRecords.length + ' records, lastWeek=' + lwRecords.length + ' records, hours=' + bikeCountHours.length, bikeCountHours);
+            console.log('Bike count: total=' + allRecords.length + ', today=' + todayRecords.length + ', lastWeek=' + lwRecords.length + ', hours=' + bikeCountHours.length, bikeCountHours);
 
             computeBikeCountState();
 
