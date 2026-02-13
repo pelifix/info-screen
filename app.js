@@ -522,10 +522,11 @@
                     categories: cats,
                 };
             }).filter(function(a) { return a.title; });
+            console.log('[' + (meta ? meta.label : type) + '] rss2json \u2192 ' + rawFeeds[type].length + ' items');
             mergeFeedsAndRender();
             setSource(srcKey, 'ok');
         } catch (err) {
-            console.warn('Feed load error (' + type + '):', err);
+            console.log('[' + (meta ? meta.label : type) + '] rss2json \u2192 ERROR ' + err.message);
             setSource(srcKey, 'error');
         }
     }
@@ -622,7 +623,7 @@
                     });
                 }
             }
-        } catch (e) { console.warn('Bing wallpaper error:', e); }
+        } catch (e) { console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ERROR ' + e.message); }
         // Radar + webcams
         liveImgs.push({
             src: 'https://api.met.no/weatherapi/radar/2.0/?type=reflectivity&area=southwestern_norway&content=animation',
@@ -645,9 +646,11 @@
         }
         while (bi < bingImgs.length) images.push(bingImgs[bi++]);
         if (images.length) {
+            console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ' + images.length + ' images');
             buildSlideshow(images);
             setSource('bilder', 'ok');
         } else {
+            console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ERROR no images');
             setSource('bilder', 'error');
         }
     }
@@ -846,10 +849,11 @@
             var all = [];
             results.forEach(function(r, idx) {
                 if (r.status === 'fulfilled') {
+                    console.log('[' + SOURCES[srcKeys[idx]].label + '] proxy \u2192 ' + r.value.length + ' events');
                     all = all.concat(r.value);
                     setSource(srcKeys[idx], 'ok');
                 } else {
-                    console.warn(srcKeys[idx] + ' scrape failed:', r.reason);
+                    console.log('[' + SOURCES[srcKeys[idx]].label + '] proxy \u2192 ERROR ' + (r.reason && r.reason.message || r.reason));
                     setSource(srcKeys[idx], 'error');
                 }
             });
@@ -872,7 +876,8 @@
 
             renderEvents(events.length ? events : FALLBACK_EVENTS);
         } catch (e) {
-            console.warn('Events scrape error:', e);
+            console.log('[' + SOURCES.konserthus.label + '] proxy \u2192 ERROR ' + e.message);
+            console.log('[' + SOURCES.folken.label + '] proxy \u2192 ERROR ' + e.message);
             setSource('konserthus', 'error');
             setSource('folken', 'error');
             renderEvents(FALLBACK_EVENTS);
@@ -934,10 +939,11 @@
             var sp = data.data.stopPlace;
             var calls = sp.estimatedCalls || [];
             document.getElementById('bus-stop-name').textContent = sp.name;
+            console.log('[' + SOURCES.buss.label + '] entur.io \u2192 ' + calls.length + ' departures');
             renderBusDepartures(calls);
             setSource('buss', 'ok');
         } catch (e) {
-            console.warn('Bus departures error:', e);
+            console.log('[' + SOURCES.buss.label + '] entur.io \u2192 ERROR ' + e.message);
             setSource('buss', 'error');
         }
     }
@@ -1000,10 +1006,11 @@
                 };
             });
 
+            console.log('[' + SOURCES.bysykler.label + '] entur.io \u2192 ' + stations.length + ' stations');
             renderBikeStations(stations);
             setSource('bysykler', 'ok');
         } catch (e) {
-            console.warn('Bike stations error:', e);
+            console.log('[' + SOURCES.bysykler.label + '] entur.io \u2192 ERROR ' + e.message);
             setSource('bysykler', 'error');
         }
     }
@@ -1136,10 +1143,11 @@
             if (rates.EUR) tkFinancial.push({ label: 'EUR/NOK', value: Number(rates.EUR.value).toFixed(2), change: rates.EUR.change });
             if (rates.GBP) tkFinancial.push({ label: 'GBP/NOK', value: Number(rates.GBP.value).toFixed(2), change: rates.GBP.change });
 
+            console.log('[' + SOURCES.marked.label + '] norges-bank.no \u2192 ' + tkFinancial.length + ' items');
             buildTickerContent();
             setSource('marked', 'ok');
         } catch (e) {
-            console.warn('Financial data error:', e);
+            console.log('[' + SOURCES.marked.label + '] norges-bank.no \u2192 ERROR ' + e.message);
             setSource('marked', 'error');
             tkFinancial = [
                 { label: 'USD/NOK', value: '\u2013', change: 0 },
@@ -1282,10 +1290,11 @@
             }
             tkSparkData = hourlyPrices;
 
+            console.log('[' + SOURCES.strompris.label + '] hvakosterstrommen \u2192 ' + hourlyPrices.length + ' hours');
             buildTickerContent();
             setSource('strompris', 'ok');
         } catch (e) {
-            console.warn('Electricity price error:', e);
+            console.log('[' + SOURCES.strompris.label + '] hvakosterstrommen \u2192 ERROR ' + e.message);
             setSource('strompris', 'error');
         }
     }
@@ -1487,7 +1496,7 @@
             var lwEdges = data.data.lastWeek.volume.byHour.edges;
             trafficHours = parseTrafficHours(todayEdges);
             trafficLastWeek = parseTrafficHours(lwEdges);
-            console.log('Traffic: today=' + trafficHours.length + 'h, lastWeek=' + trafficLastWeek.length + 'h', trafficHours);
+            console.log('[' + SOURCES.trafikk.label + '] vegvesen.no \u2192 ' + trafficHours.length + 'h today, ' + trafficLastWeek.length + 'h lastWeek');
 
             computeTrafficState();
 
@@ -1511,7 +1520,7 @@
             buildTickerContent();
             setSource('trafikk', 'ok');
         } catch (e) {
-            console.warn('Traffic data error:', e);
+            console.log('[' + SOURCES.trafikk.label + '] vegvesen.no \u2192 ERROR ' + e.message);
             setSource('trafikk', 'error');
         }
     }
@@ -1710,7 +1719,7 @@
 
             bikeCountHours = parseBikeCountRecords(todayRecords);
             bikeCountLastWeek = parseBikeCountRecords(lwRecords);
-            console.log('Bike count: total=' + allRecords.length + ', today=' + todayRecords.length + ', lastWeek=' + lwRecords.length + ', hours=' + bikeCountHours.length, bikeCountHours);
+            console.log('[' + SOURCES.sykkel.label + '] JSONP opencom.no \u2192 ' + allRecords.length + ' records (today: ' + todayRecords.length + ', lastWeek: ' + lwRecords.length + ')');
 
             computeBikeCountState();
 
@@ -1730,7 +1739,7 @@
             buildTickerContent();
             setSource('sykkel', 'ok');
         } catch (e) {
-            console.warn('Bike count error:', e);
+            console.log('[' + SOURCES.sykkel.label + '] JSONP opencom.no \u2192 ERROR ' + e.message);
             setSource('sykkel', 'error');
         }
     }
@@ -1786,9 +1795,10 @@
             document.getElementById('weather-desc').textContent = sym[1];
             document.getElementById('weather-detail').textContent = windDesc(wind) + ' ' + wind.toFixed(1) + ' m/s';
             document.getElementById('weather-location').textContent = CONFIG.weatherLocation;
+            console.log('[' + SOURCES.vaer.label + '] met.no \u2192 ' + temp + '\u00B0, ' + sym[1]);
             setSource('vaer', 'ok');
         } catch (e) {
-            console.warn('Weather error:', e);
+            console.log('[' + SOURCES.vaer.label + '] met.no \u2192 ERROR ' + e.message);
             document.getElementById('weather-desc').textContent = 'Feil ved lasting';
             setSource('vaer', 'error');
         }
