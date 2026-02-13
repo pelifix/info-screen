@@ -195,7 +195,6 @@
 
     /* ═══ NEWS FEED ═══ */
     var heroEl = document.getElementById('hero-story');
-    var feedTrack = document.getElementById('feed-track');
     var feedItems = [];
     var currentHeroTitle = '';
     var heroItems = [];
@@ -289,9 +288,6 @@
         }
     }
 
-    function updateHeroProgress() {
-        renderHeroProgress();
-    }
 
     var feedQueue = [];
     var feedQueueIndex = 0;
@@ -512,7 +508,7 @@
         if (heroItems.length <= 1) return;
         heroIndex = (heroIndex + 1) % heroItems.length;
         renderHero(heroItems[heroIndex]);
-        updateHeroProgress();
+        renderHeroProgress();
     }, CONFIG.heroInterval);
 
     /* ═══ IMAGE SLIDESHOW ═══ */
@@ -692,6 +688,21 @@
         '</div>';
     }
 
+    var eventsPulseTimer = null;
+
+    function setupEventsPulse(pauseTime, totalTime) {
+        if (eventsPulseTimer) clearInterval(eventsPulseTimer);
+        var startTime = Date.now();
+        var totalMs = totalTime * 1000;
+        var pauseMs = pauseTime * 1000;
+        var pulseLeadIn = pauseMs;
+        eventsPulseTimer = setInterval(function() {
+            var cyclePos = (Date.now() - startTime) % totalMs;
+            var shouldPulse = cyclePos > (pauseMs - pulseLeadIn) && cyclePos < pauseMs;
+            eventsEl.classList.toggle('peek', shouldPulse);
+        }, 500);
+    }
+
     function renderEvents(events) {
         eventsEl.innerHTML = '';
         if (!events.length) {
@@ -703,11 +714,24 @@
         if (events.length > 5) {
             var inner = document.createElement('div');
             inner.className = 'events-scroll';
-            var sep = '<div class="events-sep"><span></span></div>';
+            var sep = '<div class="events-sep"><span></span><span></span><span></span></div>';
             inner.innerHTML = html + sep + html + sep;
-            var duration = events.length * 4;
-            inner.style.animationDuration = duration + 's';
+            var scrollTime = events.length * 4;
+            var pauseTime = 20;
+            var totalTime = scrollTime + pauseTime;
+            var pausePct = (pauseTime / totalTime * 100).toFixed(1);
+            // Inject dynamic keyframe with pause at start
+            var styleId = 'events-drift-kf';
+            var oldStyle = document.getElementById(styleId);
+            if (oldStyle) oldStyle.remove();
+            var style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = '@keyframes events-drift{0%,' + pausePct + '%{transform:translate3d(0,0,0)}100%{transform:translate3d(0,-50%,0)}}';
+            document.head.appendChild(style);
+            inner.style.animationDuration = totalTime + 's';
             eventsEl.appendChild(inner);
+            // Pulse indicator at bottom during pause window
+            setupEventsPulse(pauseTime, totalTime);
         } else {
             eventsEl.innerHTML = html;
         }
@@ -1136,12 +1160,23 @@
     setInterval(loadImages, CONFIG.imageRefresh);
 
     /* ═══ KEYBOARD SHORTCUTS (for browser testing) ═══ */
+    function resetHeroTimer() {
+        clearInterval(window._heroTimer);
+        window._heroTimer = setInterval(function() {
+            if (heroItems.length <= 1) return;
+            heroIndex = (heroIndex + 1) % heroItems.length;
+            renderHero(heroItems[heroIndex]);
+            renderHeroProgress();
+        }, CONFIG.heroInterval);
+    }
+
     document.addEventListener('keydown', function(e) {
         if (e.key === 'ArrowRight') {
             if (heroItems.length <= 1) return;
             heroIndex = (heroIndex + 1) % heroItems.length;
             renderHero(heroItems[heroIndex]);
-            updateHeroProgress();
+            renderHeroProgress();
+            resetHeroTimer();
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             scrollFeed();
