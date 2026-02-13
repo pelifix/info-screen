@@ -45,6 +45,10 @@
         busRefresh: 45 * 1000,
         bikeStations: ['YKO:Station:190', 'YKO:Station:192'],
         bikeRefresh: 60 * 1000,
+        trafficGraphQL: 'https://trafikkdata-api.atlas.vegvesen.no/',
+        trafficPointId: '12478V320582',
+        trafficPointName: 'E39 J\u00e5tten',
+        trafficRefresh: 5 * 60 * 1000,
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
@@ -58,6 +62,7 @@
         dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh },
         tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh },
         strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh },
+        trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
@@ -79,6 +84,7 @@
         dn:          { srcKey: 'dn',          label: 'DN',          color: 'src-dn' },
         tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
+        trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
     };
 
     var lastRefreshTime = null;
@@ -135,7 +141,7 @@
 
     function timeAgo(dateStr) {
         var d = dateStr;
-        if (d && !/[Z+\-]\d/.test(d.slice(-6))) d += 'Z';
+        if (d && !/[Z+\-]\d/.test(d.slice(-6)) && d.slice(-1) !== 'Z') d += 'Z';
         var diff = Date.now() - new Date(d).getTime();
         var mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Akkurat n\u00e5';
@@ -206,6 +212,7 @@
     var heroIndex = 0;
     var rawFeeds = {};
     Object.keys(CONFIG.feeds).forEach(function(k) { rawFeeds[k] = []; });
+    rawFeeds.trafikk = [];
 
     function renderHero(item) {
         if (!item) return;
@@ -216,11 +223,14 @@
         var colorClass = meta ? meta.color : '';
         var badgeText = meta ? meta.label : 'Siste nytt';
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
-        var imgContent = isSpark
-            ? buildPriceCardHtml('large')
-            : item.image
-                ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-                : '<div class="hero-no-img">\u{1F4F0}</div>';
+        var sparkType = isSpark ? item.image.slice(6) : '';
+        var imgContent = sparkType === 'trafikk'
+            ? buildTrafficCardHtml('large')
+            : isSpark
+                ? buildPriceCardHtml('large')
+                : item.image
+                    ? '<img src="' + escapeHtml(item.image) + '" alt="">'
+                    : '<div class="hero-no-img">\u{1F4F0}</div>';
 
         var html =
             '<div class="hero-img-wrap">' +
@@ -230,7 +240,7 @@
             '</div>' +
             '<div class="hero-text">' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
-                (item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
+                (item.descHtml ? '<div class="hero-desc">' + item.descHtml + '</div>' : item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                 '<div class="hero-time">' + formatTimeCats(item) + '</div>' +
             '</div>';
 
@@ -308,11 +318,14 @@
         div.setAttribute('data-source', item.source);
         div.setAttribute('data-title', item.title);
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
-        var imgHtml = isSpark
-            ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
-            : item.image
-                ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
-                : '<div class="article-img no-image">\u{1F4F0}</div>';
+        var sparkType = isSpark ? item.image.slice(6) : '';
+        var imgHtml = sparkType === 'trafikk'
+            ? '<div class="article-img">' + buildTrafficCardHtml('small') + '</div>'
+            : isSpark
+                ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
+                : item.image
+                    ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
+                    : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
@@ -323,7 +336,7 @@
                 imgWithBadge +
                 '<div class="article-text">' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
-                    (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
+                    (item.descHtml ? '<div class="article-desc">' + item.descHtml + '</div>' : item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                     '<div class="article-time">' + formatTimeCats(item) + '</div>' +
                 '</div>' +
             '</div>';
@@ -1021,7 +1034,7 @@
         var parts = [];
         var newsIdx = 0;
         var chunk = 2;
-        var dataSlot = 0; // alternates: 0 = marked, 1 = strøm
+        var dataSlot = 0; // 0 = marked, 1 = strøm, 2 = trafikk
 
         while (newsIdx < headlines.length) {
             var slice = headlines.slice(newsIdx, newsIdx + chunk);
@@ -1045,8 +1058,14 @@
                     parts.push('<span class="elec-item"><span class="elec-val">' + escapeHtml(e.value) + '</span><span class="elec-meta"><span class="elec-label">' + escapeHtml(e.label) + '</span><span class="elec-unit">kr/kWh</span></span></span>');
                 });
                 parts.push('<span class="sep">\u2022</span>');
+            } else if (dataSlot === 2 && trafficState.currentVol) {
+                if (trafficHours.length >= 2) {
+                    parts.push('<span class="traffic-spark">' + buildSparklineSvg(trafficHours.map(function(h) { return h.total; }), '#f97316') + '</span>');
+                }
+                parts.push('<span class="traffic-item"><span class="traffic-val">' + trafficState.currentVol + '</span><span class="traffic-meta"><span class="traffic-label">' + escapeHtml(trafficState.level) + '</span><span class="traffic-unit">kjt/t</span></span></span>');
+                parts.push('<span class="sep">\u2022</span>');
             }
-            dataSlot = (dataSlot + 1) % 2;
+            dataSlot = (dataSlot + 1) % 3;
         }
 
         var html = parts.join('');
@@ -1130,8 +1149,9 @@
         return y + '/' + m + '-' + day;
     }
 
-    function buildSparklineSvg(data) {
+    function buildSparklineSvg(data, color) {
         if (!data || data.length < 2) return '';
+        var c = color || '#38bdf8';
         var w = 80, h = 22, pad = 2;
         var min = Math.min.apply(null, data);
         var max = Math.max.apply(null, data);
@@ -1142,7 +1162,7 @@
             return x.toFixed(1) + ',' + y.toFixed(1);
         }).join(' ');
         return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
-            '<polyline points="' + points + '" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>' +
+            '<polyline points="' + points + '" fill="none" stroke="' + c + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>' +
             '</svg>';
     }
 
@@ -1256,6 +1276,231 @@
 
     setTimeout(function() { loadElectricityPrices(); }, 22000);
     setInterval(loadElectricityPrices, CONFIG.stromprisRefresh);
+
+    /* ═══ E39 TRAFFIC ═══ */
+    var trafficHours = [];
+    var trafficLastWeek = [];
+    var trafficState = { level: '', trend: '', label: '', desc: '', currentVol: 0 };
+
+    function computeTrafficState() {
+        if (!trafficHours.length) return;
+        var cur = trafficHours[trafficHours.length - 1];
+        var prev = trafficHours.length > 1 ? trafficHours[trafficHours.length - 2] : null;
+        var vol = cur.total;
+        var hour = parseInt(cur.hour);
+
+        // Level
+        var level;
+        if (vol > 4500) level = 'Rushtrafikk';
+        else if (vol > 3500) level = 'Mye trafikk';
+        else if (vol > 2000) level = 'Normal trafikk';
+        else level = 'Rolig trafikk';
+
+        // Trend
+        var trend = '';
+        if (prev) {
+            var pct = ((vol - prev.total) / prev.total) * 100;
+            if (pct > 15) trend = 'Trafikken \u00f8ker';
+            else if (pct < -15) trend = 'Trafikken avtar';
+            else trend = 'Stabil trafikk';
+        }
+
+        // vs last week
+        var vsWeek = '';
+        if (trafficLastWeek.length) {
+            var sameHour = null;
+            for (var i = 0; i < trafficLastWeek.length; i++) {
+                if (trafficLastWeek[i].hour === cur.hour) { sameHour = trafficLastWeek[i]; break; }
+            }
+            if (sameHour && sameHour.total > 0) {
+                var diff = Math.round(((vol - sameHour.total) / sameHour.total) * 100);
+                vsWeek = (diff >= 0 ? '+' : '') + diff + '% vs forrige ' + dayN[new Date().getDay()].toLowerCase();
+            }
+        }
+
+        // Direction insight
+        var dirLabel = '';
+        if (hour < 12) {
+            dirLabel = 'Mot Stavanger: ' + cur.north;
+        } else {
+            dirLabel = 'Mot Sandnes: ' + cur.south;
+        }
+
+        // Dynamic title
+        var title;
+        if (vol > 4500) {
+            title = (hour < 12 ? 'Morgenrush' : 'Ettermiddagsrush') + ' p\u00e5 E39 \u2014 ' + vol + ' kjt/t';
+        } else if (trend === 'Trafikken avtar') {
+            title = 'Trafikken avtar p\u00e5 E39 J\u00e5tten';
+        } else if (trend === 'Trafikken \u00f8ker') {
+            title = 'Trafikken \u00f8ker p\u00e5 E39 J\u00e5tten';
+        } else {
+            title = level + ' p\u00e5 E39 J\u00e5tten';
+        }
+
+        // Description (HTML with line breaks and emojis)
+        var descLines = [];
+        descLines.push('\u2B06\uFE0F Mot Stavanger: ' + cur.north + ' kjt/t');
+        descLines.push('\u2B07\uFE0F Mot Sandnes: ' + cur.south + ' kjt/t');
+        if (trend) descLines.push((trend === 'Trafikken \u00f8ker' ? '\uD83D\uDD3A' : trend === 'Trafikken avtar' ? '\uD83D\uDD3B' : '\u27A1\uFE0F') + ' ' + trend);
+        if (vsWeek) descLines.push('\uD83D\uDCC5 ' + vsWeek);
+
+        trafficState = {
+            level: level,
+            trend: trend,
+            label: title,
+            descHtml: descLines.join('<br>'),
+            currentVol: vol,
+        };
+    }
+
+    function buildTrafficCardSvg(todayData, lastWeekData, w, h) {
+        if (!todayData || todayData.length < 2) return '';
+        var pad = 4;
+        // Shared scale across both datasets
+        var allVals = todayData.map(function(d) { return d.total; });
+        if (lastWeekData && lastWeekData.length) {
+            allVals = allVals.concat(lastWeekData.map(function(d) { return d.total; }));
+        }
+        var min = Math.min.apply(null, allVals);
+        var max = Math.max.apply(null, allVals);
+        var range = max - min || 1;
+        var top = h * 0.15, bot = h - pad;
+
+        function hourToX(hr) { return pad + (hr / 23) * (w - pad * 2); }
+        function valToY(v) { return top + (1 - (v - min) / range) * (bot - top); }
+        function buildPoints(arr) {
+            return arr.map(function(d) {
+                return hourToX(parseInt(d.hour)).toFixed(1) + ',' + valToY(d.total).toFixed(1);
+            });
+        }
+
+        var todayPts = buildPoints(todayData);
+        var polyline = todayPts.join(' ');
+        var lastHr = parseInt(todayData[todayData.length - 1].hour);
+        var lastX = hourToX(lastHr);
+        var firstX = hourToX(parseInt(todayData[0].hour));
+        var areaPath = 'M' + todayPts[0] + ' ' + todayPts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
+            ' L' + lastX.toFixed(1) + ',' + h + ' L' + firstX.toFixed(1) + ',' + h + ' Z';
+
+        // Last week reference line
+        var lwLine = '';
+        if (lastWeekData && lastWeekData.length >= 2) {
+            var lwPts = buildPoints(lastWeekData);
+            lwLine = '<polyline points="' + lwPts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,4" stroke-linejoin="round" stroke-linecap="round"/>';
+        }
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
+            '<defs><linearGradient id="traffic-fill" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="#f97316" stop-opacity="0.4"/>' +
+            '<stop offset="100%" stop-color="#f97316" stop-opacity="0.05"/>' +
+            '</linearGradient></defs>' +
+            lwLine +
+            '<path d="' + areaPath + '" fill="url(#traffic-fill)"/>' +
+            '<polyline points="' + polyline + '" fill="none" stroke="#f97316" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+            '</svg>';
+    }
+
+    function buildTrafficCardHtml(size) {
+        var vol = trafficState.currentVol || '';
+        var svg = buildTrafficCardSvg(trafficHours, trafficLastWeek, 400, 200);
+        var fontSize = size === 'large' ? '5rem' : '2rem';
+        var volSize = size === 'large' ? '2.4rem' : '1rem';
+        var unitSize = size === 'large' ? '0.9rem' : '0.55rem';
+        return '<div class="traffic-card-visual">' +
+            '<div class="traffic-card-spark">' + svg + '</div>' +
+            '<div class="traffic-card-overlay">' +
+                '<div class="traffic-card-emoji" style="font-size:' + fontSize + ';">\uD83D\uDE97</div>' +
+                (vol ? '<div class="traffic-card-vol" style="font-size:' + volSize + ';">' + vol + '<span class="traffic-card-unit" style="font-size:' + unitSize + ';"> kjt/t</span></div>' : '') +
+            '</div>' +
+        '</div>';
+    }
+
+    function parseTrafficHours(edges) {
+        return edges.map(function(e) {
+            var n = e.node;
+            var dirs = n.byDirection || [];
+            var north = 0, south = 0;
+            dirs.forEach(function(d) {
+                if (d.heading === 'Stavanger') north = d.total.volumeNumbers.volume;
+                else south = d.total.volumeNumbers.volume;
+            });
+            return {
+                hour: n.from.substring(11, 13),
+                total: n.total.volumeNumbers.volume,
+                north: north,
+                south: south,
+            };
+        });
+    }
+
+    function toLocalIso(d) {
+        var off = -d.getTimezoneOffset();
+        var sign = off >= 0 ? '+' : '-';
+        var oh = String(Math.floor(Math.abs(off) / 60)).padStart(2, '0');
+        var om = String(Math.abs(off) % 60).padStart(2, '0');
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' +
+            String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0') +
+            sign + oh + ':' + om;
+    }
+
+    async function loadTrafficData() {
+        setSource('trafikk', 'loading');
+        try {
+            var now = new Date();
+            var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            var lastWeekDay = new Date(today.getTime() - 7 * 86400000);
+            var todayStr = toLocalIso(today);
+            var nowStr = toLocalIso(now);
+            var lwStart = toLocalIso(lastWeekDay);
+            var lwEnd = toLocalIso(new Date(lastWeekDay.getTime() + 86400000));
+
+            var query = '{ today: trafficData(trafficRegistrationPointId: "' + CONFIG.trafficPointId + '") { volume { byHour(from: "' + todayStr + '", to: "' + nowStr + '") { edges { node { from total { volumeNumbers { volume } } byDirection { heading total { volumeNumbers { volume } } } } } } } } lastWeek: trafficData(trafficRegistrationPointId: "' + CONFIG.trafficPointId + '") { volume { byHour(from: "' + lwStart + '", to: "' + lwEnd + '") { edges { node { from total { volumeNumbers { volume } } byDirection { heading total { volumeNumbers { volume } } } } } } } } }';
+
+            var resp = await fetch(CONFIG.trafficGraphQL, {
+                method: 'POST',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query }),
+            });
+            if (!resp.ok) throw new Error('Vegvesen API failed');
+            var data = await resp.json();
+
+            var todayEdges = data.data.today.volume.byHour.edges;
+            var lwEdges = data.data.lastWeek.volume.byHour.edges;
+            trafficHours = parseTrafficHours(todayEdges);
+            trafficLastWeek = parseTrafficHours(lwEdges);
+
+            computeTrafficState();
+
+            // Inject synthetic article
+            if (trafficState.currentVol) {
+                var isRush = now.getDay() >= 1 && now.getDay() <= 5 &&
+                    ((now.getHours() >= 7 && now.getHours() < 9) || (now.getHours() >= 14 && now.getHours() < 17));
+                var pubDate = isRush ? now.toISOString() : new Date(now.getTime() - 3600000).toISOString();
+
+                rawFeeds.trafikk = [{
+                    title: trafficState.label,
+                    descHtml: trafficState.descHtml,
+                    pubDate: pubDate,
+                    image: 'spark:trafikk',
+                    source: 'trafikk',
+                    categories: [trafficState.level],
+                }];
+                mergeFeedsAndRender();
+            }
+
+            buildTickerContent();
+            setSource('trafikk', 'ok');
+        } catch (e) {
+            console.warn('Traffic data error:', e);
+            setSource('trafikk', 'error');
+        }
+    }
+
+    setTimeout(function() { loadTrafficData(); }, 26000);
+    setInterval(loadTrafficData, CONFIG.trafficRefresh);
 
     /* ═══ WEATHER ═══ */
     var WX = {
