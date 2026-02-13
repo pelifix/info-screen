@@ -3,6 +3,8 @@
 :root {
     --accent: #e8a83e;
     --finance: #4ade80;
+    --electricity: #38bdf8;
+    --src-strompris: #38bdf8;
     --src-nrk: #5b9fd4;
     --src-nrk-sport: #22d3ee;
     --src-e24: #4ade80;
@@ -116,6 +118,7 @@ body.hide-cursor { cursor: none; }
 .hero-badge.src-vg-sport { background: var(--src-vg-sport); color: var(--bg-deep); }
 .hero-badge.src-dn { background: var(--src-dn); color: var(--bg-deep); }
 .hero-badge.src-tu { background: var(--src-tu); color: var(--bg-deep); }
+.hero-badge.src-strompris { background: var(--src-strompris); color: var(--bg-deep); }
 
 .hero-text {
     display: flex; flex-direction: column;
@@ -134,6 +137,7 @@ body.hide-cursor { cursor: none; }
 .hero-source.src-vg-sport { color: var(--src-vg-sport); }
 .hero-source.src-dn { color: var(--src-dn); }
 .hero-source.src-tu { color: var(--src-tu); }
+.hero-source.src-strompris { color: var(--src-strompris); }
 .hero-top-badge {
     font-family: var(--font-display); letter-spacing: var(--display-spacing);
     font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
@@ -235,6 +239,7 @@ body.hide-cursor { cursor: none; }
 .article-source.src-vg-sport, .article-source-overlay.src-vg-sport { color: var(--src-vg-sport); }
 .article-source.src-dn, .article-source-overlay.src-dn { color: var(--src-dn); }
 .article-source.src-tu, .article-source-overlay.src-tu { color: var(--src-tu); }
+.article-source.src-strompris, .article-source-overlay.src-strompris { color: var(--src-strompris); }
 
 .article-title {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.15rem; font-weight: var(--display-weight);
@@ -256,6 +261,7 @@ body.hide-cursor { cursor: none; }
 .article-latest.src-vg-sport { border-left-color: var(--src-vg-sport); }
 .article-latest.src-dn { border-left-color: var(--src-dn); }
 .article-latest.src-tu { border-left-color: var(--src-tu); }
+.article-latest.src-strompris { border-left-color: var(--src-strompris); }
 .article-badges {
     position: absolute; top: 4px; left: 4px;
     display: flex; gap: 4px; align-items: center; z-index: 2;
@@ -286,6 +292,28 @@ body.hide-cursor { cursor: none; }
     display: flex; align-items: center; justify-content: center;
     font-size: 2.5rem; opacity: 0.12;
 }
+
+/* ═══ PRICE CARD VISUAL ═══ */
+.price-card-visual {
+    position: relative; width: 100%; height: 100%;
+    background: linear-gradient(135deg, #0c1a2e 0%, #0f2847 100%);
+    overflow: hidden;
+}
+.price-card-spark {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 70%;
+    opacity: 0.9;
+}
+.price-card-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
+}
+.price-card-emoji { line-height: 1; filter: saturate(1.2); }
+.price-card-price {
+    font-family: var(--font-display); font-weight: 700;
+    color: #38bdf8; line-height: 1;
+}
+.price-card-unit { color: rgba(56, 189, 248, 0.6); font-weight: 500; }
 
 /* ═══ WIDGETS ═══ */
 .widgets {
@@ -645,6 +673,32 @@ body.hide-cursor { cursor: none; }
 }
 .ticker-content .fin-chg.up { color: #4ade80; }
 .ticker-content .fin-chg.down { color: #f87171; }
+
+.ticker-content .elec-item {
+    color: var(--electricity); display: inline-flex; flex-direction: row;
+    align-items: flex-end; padding: 0 8px; line-height: 1; gap: 4px;
+}
+.ticker-content .elec-val {
+    font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
+    font-size: 1.5rem;
+}
+.ticker-content .elec-meta {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 1px; margin-bottom: 2px;
+}
+.ticker-content .elec-label {
+    font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
+    font-size: 0.55rem; opacity: 0.6; letter-spacing: 1px;
+}
+.ticker-content .elec-unit {
+    font-size: 0.5rem; opacity: 0.4; letter-spacing: 0.5px;
+}
+.ticker-content .elec-spark {
+    display: inline-flex; align-items: center; padding: 0 4px;
+}
+.ticker-content .elec-spark svg {
+    display: block;
+}
 /* ═══ LOADING & AMBIENT ═══ */
 .loading-overlay {
     position: fixed; inset: 0; background: var(--bg-deep); z-index: 100;

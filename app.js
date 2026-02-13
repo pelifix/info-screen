@@ -15,7 +15,10 @@
             vgSport: 'https://www.vg.no/rss/feed/?categories=sport',
             dn: 'https://services.dn.no/api/feed/rss/',
             tu: 'https://www.tu.no/rss',
+            strompris: 'https://www.hvakosterstrommen.no/rss/prices/NO2',
         },
+        stromprisRegion: 'NO2',
+        stromprisRefresh: 30 * 60 * 1000,
         feedRefresh: 5 * 60 * 1000,
         feedScrollInterval: 7000,
         tickerSpeed: 100,
@@ -54,6 +57,7 @@
         vgSport:     { label: 'VG Sport',    status: 'pending', refresh: CONFIG.feedRefresh },
         dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh },
         tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh },
+        strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
@@ -74,6 +78,7 @@
         vgSport:     { srcKey: 'vgSport',     label: 'VG Sport',    color: 'src-vg-sport' },
         dn:          { srcKey: 'dn',          label: 'DN',          color: 'src-dn' },
         tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
+        strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
     };
 
     var lastRefreshTime = null;
@@ -210,9 +215,12 @@
         var meta = FEED_META[item.source];
         var colorClass = meta ? meta.color : '';
         var badgeText = meta ? meta.label : 'Siste nytt';
-        var imgContent = item.image
-            ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-            : '<div class="hero-no-img">\u{1F4F0}</div>';
+        var isSpark = item.image && item.image.indexOf('spark:') === 0;
+        var imgContent = isSpark
+            ? buildPriceCardHtml('large')
+            : item.image
+                ? '<img src="' + escapeHtml(item.image) + '" alt="">'
+                : '<div class="hero-no-img">\u{1F4F0}</div>';
 
         var html =
             '<div class="hero-img-wrap">' +
@@ -299,9 +307,12 @@
         div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
         div.setAttribute('data-source', item.source);
         div.setAttribute('data-title', item.title);
-        var imgHtml = item.image
-            ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
-            : '<div class="article-img no-image">\u{1F4F0}</div>';
+        var isSpark = item.image && item.image.indexOf('spark:') === 0;
+        var imgHtml = isSpark
+            ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
+            : item.image
+                ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
+                : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
@@ -477,11 +488,13 @@
                     .filter(function(c) { return c && !skipCats[c.toLowerCase().trim()]; })
                     .slice(0, 3);
                 var title = (item.title || '').replace(/^\[.*?\]\s*/, '');
+                var image = item.thumbnail || (item.enclosure && item.enclosure.link) || null;
+                if (!image && type === 'strompris') image = 'spark:strom';
                 return {
                     title: title,
                     desc: (item.description || '').replace(/<[^>]*>/g, ''),
                     pubDate: item.pubDate || '',
-                    image: item.thumbnail || (item.enclosure && item.enclosure.link) || null,
+                    image: image,
                     source: type,
                     categories: cats,
                 };
@@ -1004,10 +1017,11 @@
 
     function buildTickerContent() {
         var headlines = getTickerHeadlines();
-        if (!headlines.length && !tkFinancial.length) return;
+        if (!headlines.length && !tkFinancial.length && !tkElectricity.length) return;
         var parts = [];
         var newsIdx = 0;
-        var chunk = 3;
+        var chunk = 2;
+        var dataSlot = 0; // alternates: 0 = marked, 1 = strøm
 
         while (newsIdx < headlines.length) {
             var slice = headlines.slice(newsIdx, newsIdx + chunk);
@@ -1017,13 +1031,22 @@
             });
             newsIdx += chunk;
 
-            if (tkFinancial.length) {
+            if (dataSlot === 0 && tkFinancial.length) {
                 tkFinancial.forEach(function(f) {
                     var chg = f.change ? fmtChange(f.change) : '';
                     parts.push('<span class="fin-item"><span class="fin-val">' + escapeHtml(f.value) + '</span><span class="fin-meta"><span class="fin-cur">' + escapeHtml(f.label) + '</span>' + chg + '</span></span>');
                 });
                 parts.push('<span class="sep">\u2022</span>');
+            } else if (dataSlot === 1 && tkElectricity.length) {
+                if (tkSparkData.length >= 2) {
+                    parts.push('<span class="elec-spark">' + buildSparklineSvg(tkSparkData) + '</span>');
+                }
+                tkElectricity.forEach(function(e) {
+                    parts.push('<span class="elec-item"><span class="elec-val">' + escapeHtml(e.value) + '</span><span class="elec-meta"><span class="elec-label">' + escapeHtml(e.label) + '</span><span class="elec-unit">kr/kWh</span></span></span>');
+                });
+                parts.push('<span class="sep">\u2022</span>');
             }
+            dataSlot = (dataSlot + 1) % 2;
         }
 
         var html = parts.join('');
@@ -1095,6 +1118,144 @@
     // Stagger finance (after feeds finish)
     setTimeout(function() { loadFinancialData(); }, 12000);
     setInterval(loadFinancialData, CONFIG.financeRefresh);
+
+    /* ═══ ELECTRICITY PRICES ═══ */
+    var tkElectricity = [];
+    var tkSparkData = [];
+
+    function formatDateParam(d) {
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '/' + m + '-' + day;
+    }
+
+    function buildSparklineSvg(data) {
+        if (!data || data.length < 2) return '';
+        var w = 80, h = 22, pad = 2;
+        var min = Math.min.apply(null, data);
+        var max = Math.max.apply(null, data);
+        var range = max - min || 1;
+        var points = data.map(function(v, i) {
+            var x = pad + (i / (data.length - 1)) * (w - pad * 2);
+            var y = pad + (1 - (v - min) / range) * (h - pad * 2);
+            return x.toFixed(1) + ',' + y.toFixed(1);
+        }).join(' ');
+        return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+            '<polyline points="' + points + '" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>' +
+            '</svg>';
+    }
+
+    function buildPriceCardSvg(data, w, h) {
+        if (!data || data.length < 2) return '';
+        var pad = 4;
+        var min = Math.min.apply(null, data);
+        var max = Math.max.apply(null, data);
+        var range = max - min || 1;
+        // Build polyline points — line sits in lower 60% of SVG
+        var top = h * 0.3, bot = h - pad;
+        var pts = data.map(function(v, i) {
+            var x = pad + (i / (data.length - 1)) * (w - pad * 2);
+            var y = top + (1 - (v - min) / range) * (bot - top);
+            return x.toFixed(1) + ',' + y.toFixed(1);
+        });
+        var polyline = pts.join(' ');
+        // Closed area fill path
+        var areaPath = 'M' + pts[0] + ' ' + pts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
+            ' L' + (w - pad) + ',' + h + ' L' + pad + ',' + h + ' Z';
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
+            '<defs><linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4"/>' +
+            '<stop offset="100%" stop-color="#38bdf8" stop-opacity="0.05"/>' +
+            '</linearGradient></defs>' +
+            '<path d="' + areaPath + '" fill="url(#spark-fill)"/>' +
+            '<polyline points="' + polyline + '" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+            '</svg>';
+    }
+
+    function buildPriceCardHtml(size) {
+        var price = tkElectricity.length ? tkElectricity[0].value : '';
+        var svg = buildPriceCardSvg(tkSparkData, 400, 200);
+        var fontSize = size === 'large' ? '5rem' : '2rem';
+        var priceSize = size === 'large' ? '2.4rem' : '1rem';
+        var unitSize = size === 'large' ? '0.9rem' : '0.55rem';
+        return '<div class="price-card-visual">' +
+            '<div class="price-card-spark">' + svg + '</div>' +
+            '<div class="price-card-overlay">' +
+                '<div class="price-card-emoji" style="font-size:' + fontSize + ';">\u26A1</div>' +
+                (price ? '<div class="price-card-price" style="font-size:' + priceSize + ';">' + escapeHtml(price) + '<span class="price-card-unit" style="font-size:' + unitSize + ';"> kr/kWh</span></div>' : '') +
+            '</div>' +
+        '</div>';
+    }
+
+    async function fetchDayPrices(date) {
+        var url = 'https://www.hvakosterstrommen.no/api/v1/prices/' + formatDateParam(date) + '_' + CONFIG.stromprisRegion + '.json';
+        var resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) return null;
+        return resp.json();
+    }
+
+    function avgPrice(hours) {
+        if (!hours || !hours.length) return null;
+        var sum = 0;
+        for (var i = 0; i < hours.length; i++) sum += hours[i].NOK_per_kWh;
+        return (sum / hours.length) * 1.25; // incl. MVA
+    }
+
+    async function loadElectricityPrices() {
+        setSource('strompris', 'loading');
+        try {
+            var now = new Date();
+            var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            var tomorrow = new Date(today.getTime() + 86400000);
+
+            // Fetch today + tomorrow + last 7 days for sparkline
+            var fetches = [fetchDayPrices(today), fetchDayPrices(tomorrow)];
+            for (var d = 6; d >= 1; d--) {
+                fetches.push(fetchDayPrices(new Date(today.getTime() - d * 86400000)));
+            }
+            var results = await Promise.allSettled(fetches);
+            var todayData = results[0].status === 'fulfilled' ? results[0].value : null;
+            var tomorrowData = results[1].status === 'fulfilled' ? results[1].value : null;
+
+            var todayAvg = avgPrice(todayData);
+            var tomorrowAvg = avgPrice(tomorrowData);
+
+            tkElectricity = [];
+            if (todayAvg !== null) {
+                tkElectricity.push({ label: 'I dag', value: todayAvg.toFixed(2) });
+            }
+            if (tomorrowAvg !== null) {
+                tkElectricity.push({ label: 'I morgen', value: tomorrowAvg.toFixed(2) });
+            }
+
+            // Build sparkline from all hourly prices (last 7 days + today)
+            var hourlyPrices = [];
+            for (var s = 2; s < results.length; s++) {
+                var dayData = results[s].status === 'fulfilled' ? results[s].value : null;
+                if (dayData) {
+                    for (var hi = 0; hi < dayData.length; hi++) {
+                        hourlyPrices.push(dayData[hi].NOK_per_kWh * 1.25);
+                    }
+                }
+            }
+            if (todayData) {
+                for (var ti = 0; ti < todayData.length; ti++) {
+                    hourlyPrices.push(todayData[ti].NOK_per_kWh * 1.25);
+                }
+            }
+            tkSparkData = hourlyPrices;
+
+            buildTickerContent();
+            setSource('strompris', 'ok');
+        } catch (e) {
+            console.warn('Electricity price error:', e);
+            setSource('strompris', 'error');
+        }
+    }
+
+    setTimeout(function() { loadElectricityPrices(); }, 22000);
+    setInterval(loadElectricityPrices, CONFIG.stromprisRefresh);
 
     /* ═══ WEATHER ═══ */
     var WX = {
