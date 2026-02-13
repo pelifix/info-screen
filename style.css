@@ -315,7 +315,7 @@ body.hide-cursor { cursor: none; }
 }
 .clock-time {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 3.4rem; font-weight: var(--display-weight);
-    letter-spacing: -2px; line-height: 1; color: var(--accent);
+    letter-spacing: 2px; line-height: 1; color: var(--accent);
 }
 .clock-colon { opacity: 0.3; }
 .clock-seconds {
