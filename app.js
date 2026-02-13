@@ -626,7 +626,7 @@
     var eventsEl = document.getElementById('events-list');
 
     var FALLBACK_EVENTS = [
-        { icon: '\uD83C\uDFB5', date: 'Laster...', title: 'Henter arrangementer...', venue: 'Stavanger' },
+        { icon: '\uD83C\uDFB5', rawDate: '', title: 'Henter arrangementer...', venue: 'Stavanger' },
     ];
 
     var FOLKEN_MONTHS = {
@@ -643,12 +643,18 @@
         return '\uD83C\uDFB5';
     }
 
-    function formatISODate(isoDate) {
-        if (!isoDate) return '';
-        var p = isoDate.split('T')[0].split('-');
+    function formatEventDate(isoDate) {
+        if (!isoDate) return { label: '', isToday: false };
+        var datePart = isoDate.split('T')[0];
+        var timePart = isoDate.split('T')[1] || '';
+        var time = timePart ? timePart.substring(0, 5) : '';
+        var p = datePart.split('-');
         var day = parseInt(p[2]);
         var mon = parseInt(p[1]) - 1;
-        return day + '. ' + monN[mon].substring(0, 3);
+        var todayStr = new Date().toISOString().substring(0, 10);
+        var isToday = datePart === todayStr;
+        var dateStr = day + '. ' + monN[mon].substring(0, 3);
+        return { label: isToday ? time : dateStr, time: time, isToday: isToday };
     }
 
     function parseFolkenDate(dateText, timeText) {
@@ -661,29 +667,49 @@
         return year + '-' + mon + '-' + day + 'T' + time;
     }
 
+    function buildEventHtml(ev) {
+        var iconHtml = ev.image
+            ? '<img src="' + escapeHtml(ev.image) + '" alt="">'
+            : ev.icon;
+        var d = formatEventDate(ev.rawDate);
+        var dateHtml;
+        if (d.isToday) {
+            dateHtml = '<span class="event-today-tag">I DAG</span>' +
+                (d.time && d.time !== '00:00' ? ' <span class="event-time">' + d.time + '</span>' : '');
+        } else {
+            dateHtml = '<span class="event-date">' + escapeHtml(d.label) + '</span>' +
+                (d.time && d.time !== '00:00' ? ' <span class="event-time">' + d.time + '</span>' : '');
+        }
+        return '<div class="event-item">' +
+            '<div class="event-icon">' + iconHtml + '</div>' +
+            '<div class="event-info">' +
+                '<div class="event-title">' + escapeHtml(ev.title) + '</div>' +
+                '<div class="event-bottom">' +
+                    '<div class="event-meta">' + escapeHtml(ev.venue) + '</div>' +
+                    '<div class="event-date-wrap">' + dateHtml + '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
     function renderEvents(events) {
         eventsEl.innerHTML = '';
         if (!events.length) {
             eventsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen kommende arrangementer</div>';
             return;
         }
-        events.forEach(function(ev) {
-            var div = document.createElement('div');
-            div.className = 'event-item';
-            var iconHtml = ev.image
-                ? '<img src="' + escapeHtml(ev.image) + '" alt="">'
-                : ev.icon;
-            div.innerHTML =
-                '<div class="event-icon">' + iconHtml + '</div>' +
-                '<div class="event-info">' +
-                    '<div class="event-title">' + escapeHtml(ev.title) + '</div>' +
-                    '<div class="event-bottom">' +
-                        '<div class="event-meta">' + escapeHtml(ev.venue) + '</div>' +
-                        '<div class="event-date">' + escapeHtml(ev.date) + '</div>' +
-                    '</div>' +
-                '</div>';
-            eventsEl.appendChild(div);
-        });
+        var html = events.map(buildEventHtml).join('');
+        // If more events than visible, duplicate for seamless loop
+        if (events.length > 5) {
+            var inner = document.createElement('div');
+            inner.className = 'events-scroll';
+            inner.innerHTML = html + html;
+            var duration = events.length * 4;
+            inner.style.animationDuration = duration + 's';
+            eventsEl.appendChild(inner);
+        } else {
+            eventsEl.innerHTML = html;
+        }
     }
 
     async function scrapeKonserthus() {
@@ -694,7 +720,7 @@
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var articles = doc.querySelectorAll('article.event');
         var events = [];
-        for (var i = 0; i < articles.length && events.length < 6; i++) {
+        for (var i = 0; i < articles.length && events.length < 15; i++) {
             var a = articles[i];
             var nameEl = a.querySelector('[itemprop="name"]');
             var dateEl = a.querySelector('[itemprop="startDate"]');
@@ -721,7 +747,7 @@
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var items = doc.querySelectorAll('.list-item');
         var events = [];
-        for (var i = 0; i < items.length && events.length < 6; i++) {
+        for (var i = 0; i < items.length && events.length < 15; i++) {
             var item = items[i];
             var titleEl = item.querySelector('.title a');
             if (!titleEl) continue;
@@ -769,12 +795,18 @@
 
             if (!all.length) { renderEvents(FALLBACK_EVENTS); return; }
 
-            var nowStr = new Date().toISOString().substring(0, 10);
-            all = all.filter(function(e) { return e.date && e.date.substring(0, 10) >= nowStr; });
+            var now = new Date();
+            var nowStr = now.toISOString().substring(0, 10);
+            var maxDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+            var maxStr = maxDate.toISOString().substring(0, 10);
+            all = all.filter(function(e) {
+                var d = e.date && e.date.substring(0, 10);
+                return d && d >= nowStr && d <= maxStr;
+            });
             all.sort(function(a, b) { return a.date.localeCompare(b.date); });
 
-            var events = all.slice(0, 5).map(function(e) {
-                return { icon: e.icon, date: formatISODate(e.date), title: e.title, venue: e.venue, image: e.image || '' };
+            var events = all.map(function(e) {
+                return { icon: e.icon, rawDate: e.date, title: e.title, venue: e.venue, image: e.image || '' };
             });
 
             renderEvents(events.length ? events : FALLBACK_EVENTS);
