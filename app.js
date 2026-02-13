@@ -1686,15 +1686,17 @@
 
             function fetchJson(url) {
                 return fetch(url).then(function(r) {
-                    var ct = r.headers.get('content-type') || '';
-                    if (!r.ok || ct.indexOf('json') === -1) throw new Error('Proxy returned non-JSON (' + r.status + ')');
-                    return r.json();
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                }).then(function(text) {
+                    try { return JSON.parse(text); }
+                    catch (e) { throw new Error('Not JSON: ' + text.substring(0, 100)); }
                 });
             }
 
             var results = await Promise.all([
-                fetchJson(todayUrl).catch(function() { return { result: { records: [] } }; }),
-                fetchJson(lwUrl).catch(function() { return { result: { records: [] } }; }),
+                fetchJson(todayUrl).catch(function(e) { console.warn('Bike count today fetch failed:', e.message); return { result: { records: [] } }; }),
+                fetchJson(lwUrl).catch(function(e) { console.warn('Bike count lastWeek fetch failed:', e.message); return { result: { records: [] } }; }),
             ]);
 
             var todayRecords = results[0].result ? results[0].result.records : [];
