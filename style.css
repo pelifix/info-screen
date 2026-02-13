@@ -60,7 +60,7 @@ body.hide-cursor { cursor: none; }
     overflow: hidden;
     background: var(--bg-card);
     border-radius: var(--radius-sm);
-    margin: 8px 24px;
+    margin: 8px 10px 8px 24px;
 }
 
 .hero-card {
@@ -187,7 +187,7 @@ body.hide-cursor { cursor: none; }
 }
 .feed-cols {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0 20px; height: 100%; padding: 0 24px;
+    gap: 0 20px; height: 100%; padding: 0 10px 0 24px;
 }
 .feed-col {
     overflow: hidden;
@@ -282,16 +282,10 @@ body.hide-cursor { cursor: none; }
 
 /* ═══ WIDGETS ═══ */
 .widgets {
-    grid-area: widgets; background: var(--bg-panel);
-    border-left: 1px solid var(--border);
+    grid-area: widgets;
     display: flex; flex-direction: column;
     padding: 8px 10px 6px; gap: 5px;
     overflow: hidden; position: relative;
-}
-.widgets::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 160px;
-    background: linear-gradient(135deg, rgba(232,168,62,0.04) 0%, transparent 60%);
-    pointer-events: none;
 }
 
 .widget-card {
@@ -506,9 +500,10 @@ body.hide-cursor { cursor: none; }
 
 /* Source Status */
 .source-status {
-    margin-top: auto; padding-top: 6px;
-    border-top: 1px solid var(--border);
-    display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: flex-end;
+    margin-top: auto;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 12px;
+    display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between;
 }
 .source-dot {
     display: flex; align-items: center; gap: 4px;
