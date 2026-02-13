@@ -302,10 +302,8 @@
                 imgWithBadge +
                 '<div class="article-text">' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
-                    '<div class="article-bottom">' +
-                        (item.desc ? '<span class="article-desc">' + escapeHtml(item.desc) + '</span>' : '') +
-                        '<span class="article-time">' + formatTimeCats(item) + '</span>' +
-                    '</div>' +
+                    (item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
+                    '<div class="article-time">' + formatTimeCats(item) + '</div>' +
                 '</div>' +
             '</div>';
         return div;
