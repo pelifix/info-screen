@@ -348,13 +348,13 @@ body.hide-cursor { cursor: none; }
 }
 .ec-logo-fill {
     --progress: 0deg;
-    -webkit-mask-image: conic-gradient(from -90deg, #000 var(--progress), transparent var(--progress));
-    mask-image: conic-gradient(from -90deg, #000 var(--progress), transparent var(--progress));
+    -webkit-mask-image: conic-gradient(from 0deg, #000 var(--progress), transparent var(--progress));
+    mask-image: conic-gradient(from 0deg, #000 var(--progress), transparent var(--progress));
 }
-.ec-logo-fill.ec-loading {
+.ec-refresh-wrap.ec-loading {
     animation: ec-pulse 1s ease-in-out infinite;
 }
-.ec-logo-fill.ec-soon {
+.ec-refresh-wrap.ec-soon {
     animation: ec-glow 1.5s ease-in-out infinite;
 }
 @keyframes ec-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.92); } }

@@ -20,7 +20,7 @@
         feedScrollInterval: 7000,
         tickerSpeed: 100,
         slideInterval: 12000,
-        heroInterval: 11000,
+        heroInterval: 14000,
         heroCount: 8,
         weatherLat: 58.97,
         weatherLon: 5.73,
@@ -106,9 +106,10 @@
             return '<div class="source-dot"><div class="dot ' + s.status + '"></div>' + s.label + '</div>';
         }).join('');
         // Sync EC logo pulse with source activity
-        if (ecLogoFill) {
-            ecLogoFill.classList.toggle('ec-loading', anyLoading);
-            ecLogoFill.classList.toggle('ec-soon', !anyLoading && anySoon);
+        var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
+        if (ecWrap) {
+            ecWrap.classList.toggle('ec-loading', anyLoading);
+            ecWrap.classList.toggle('ec-soon', !anyLoading && anySoon);
         }
     }
 
