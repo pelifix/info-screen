@@ -60,7 +60,7 @@ body.hide-cursor { cursor: none; }
     overflow: hidden;
     background: var(--bg-card);
     border-radius: var(--radius-sm);
-    margin: 8px 10px 8px 24px;
+    margin: 8px 10px 8px 10px;
 }
 
 .hero-card {
@@ -187,7 +187,7 @@ body.hide-cursor { cursor: none; }
 }
 .feed-cols {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0 20px; height: 100%; padding: 0 10px 0 24px;
+    gap: 0 20px; height: 100%; padding: 0 10px;
 }
 .feed-col {
     overflow: hidden;
