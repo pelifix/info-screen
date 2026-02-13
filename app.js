@@ -1676,16 +1676,31 @@
             var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
             var lastWeek = fmtDateLocal(lastWeekDay);
 
-            // Fetch recent records via allorigins CORS proxy, filter client-side
-            var apiUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource + '&limit=500&sort=_id+desc';
-            var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
-
-            var resp = await fetch(proxyUrl);
-            if (!resp.ok) throw new Error('Bike count proxy HTTP ' + resp.status);
-            var wrapper = await resp.json();
-            var data;
-            try { data = JSON.parse(wrapper.contents); }
-            catch (e) { throw new Error('Bike count not JSON: ' + (wrapper.contents || '').substring(0, 100)); }
+            // JSONP fetch — bypasses CORS via <script> tag
+            var data = await new Promise(function(resolve, reject) {
+                var cbName = '_bikeCountCb' + Date.now();
+                var timeout = setTimeout(function() {
+                    delete window[cbName];
+                    script.remove();
+                    reject(new Error('JSONP timeout'));
+                }, 15000);
+                window[cbName] = function(d) {
+                    clearTimeout(timeout);
+                    delete window[cbName];
+                    script.remove();
+                    resolve(d);
+                };
+                var script = document.createElement('script');
+                script.src = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource +
+                    '&limit=500&sort=_id+desc&callback=' + cbName;
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[cbName];
+                    script.remove();
+                    reject(new Error('JSONP script error'));
+                };
+                document.head.appendChild(script);
+            });
 
             var allRecords = data.result ? data.result.records : [];
 
