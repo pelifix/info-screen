@@ -501,8 +501,8 @@
         setTimeout(function() { loadFeed(key); }, i * 1500);
         setInterval(function() { loadFeed(key); }, CONFIG.feedRefresh);
     });
-    setInterval(scrollFeed, CONFIG.feedScrollInterval);
-    setInterval(function() {
+    window._feedTimer = setInterval(scrollFeed, CONFIG.feedScrollInterval);
+    window._heroTimer = setInterval(function() {
         if (heroItems.length <= 1) return;
         heroIndex = (heroIndex + 1) % heroItems.length;
         renderHero(heroItems[heroIndex]);
