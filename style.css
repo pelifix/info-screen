@@ -42,10 +42,10 @@ body.hide-cursor { cursor: none; }
 .screen {
     display: grid;
     grid-template-columns: 1fr 440px;
-    grid-template-rows: 1fr 100px;
+    grid-template-rows: 1fr auto;
     grid-template-areas:
         "left-col widgets"
-        "ticker widgets";
+        "bottom-bar bottom-bar";
     height: 100vh; width: 100vw;
 }
 
@@ -54,13 +54,20 @@ body.hide-cursor { cursor: none; }
     display: flex; flex-direction: column; overflow: hidden;
 }
 
+.bottom-bar {
+    grid-area: bottom-bar;
+    display: flex; align-items: stretch;
+    margin: 0 10px;
+    gap: 5px;
+}
+
 /* ═══ HERO ═══ */
 .hero-story {
     position: relative; height: 380px; min-height: 380px;
     overflow: hidden;
     background: var(--bg-card);
     border-radius: var(--radius-sm);
-    margin: 8px 10px 8px 10px;
+    margin: 8px 5px 8px 10px;
 }
 
 .hero-card {
@@ -187,7 +194,7 @@ body.hide-cursor { cursor: none; }
 }
 .feed-cols {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0 20px; height: 100%; padding: 0 10px;
+    gap: 0 20px; height: 100%; padding: 0 5px 0 10px;
 }
 .feed-col {
     overflow: hidden;
@@ -284,7 +291,7 @@ body.hide-cursor { cursor: none; }
 .widgets {
     grid-area: widgets;
     display: flex; flex-direction: column;
-    padding: 8px 10px 6px; gap: 5px;
+    padding: 8px 10px 5px 5px; gap: 5px;
     overflow: hidden; position: relative;
 }
 
@@ -540,10 +547,12 @@ body.hide-cursor { cursor: none; }
 
 /* Source Status */
 .source-status {
-    margin-top: auto;
-    background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 8px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: 8px 12px;
     display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between;
+    align-content: center;
+    width: 430px; flex-shrink: 0;
 }
 .source-dot {
     display: flex; align-items: center; gap: 4px;
@@ -572,25 +581,27 @@ body.hide-cursor { cursor: none; }
 
 /* ═══ TICKER ═══ */
 .ticker-bar {
-    grid-area: ticker; background: var(--bg-panel);
-    border-top: 1px solid var(--border);
+    flex: 1; min-width: 0;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     display: flex; align-items: center; overflow: hidden;
 }
 .ticker-label {
     display: flex; align-items: center; gap: 8px;
-    padding: 0 24px 0 28px;
-    font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.05rem; font-weight: var(--display-weight);
+    padding: 0 18px 0 20px;
+    font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.85rem; font-weight: var(--display-weight);
     letter-spacing: 3px; text-transform: uppercase;
     color: var(--bg-deep); background: var(--accent);
     height: 100%; white-space: nowrap; position: relative; z-index: 2;
+    border-radius: var(--radius-sm) 0 0 0;
 }
 .ticker-label::after {
     content: ''; position: absolute;
-    right: -24px; top: 0; bottom: 0; width: 24px;
+    right: -18px; top: 0; bottom: 0; width: 18px;
     background: linear-gradient(to right, rgba(232,168,62,0.4), transparent);
 }
 .ticker-live-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
     background: var(--bg-deep); animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
@@ -604,13 +615,13 @@ body.hide-cursor { cursor: none; }
 }
 .ticker-content {
     display: flex; white-space: nowrap;
-    font-size: 1.5rem; color: var(--text-primary);
+    font-size: 1.3rem; color: var(--text-primary);
     will-change: transform;
 }
-.ticker-content > span { padding: 0 24px; }
+.ticker-content > span { padding: 0 16px; }
 .ticker-content .fin-item span { padding: 0; }
 .ticker-content .sep {
-    color: var(--accent); font-size: 1.2rem; padding: 0 16px; opacity: 0.4;
+    color: var(--accent); font-size: 0.8rem; padding: 0 12px; opacity: 0.4;
     display: inline-flex; align-items: center;
 }
 .ticker-content .fin-item {
@@ -619,11 +630,11 @@ body.hide-cursor { cursor: none; }
 }
 .ticker-content .fin-val {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
-    font-size: 1.8rem;
+    font-size: 1.5rem;
 }
 .ticker-content .fin-meta {
     display: flex; flex-direction: column; align-items: flex-start;
-    gap: 1px; margin-bottom: 3px;
+    gap: 1px; margin-bottom: 2px;
 }
 .ticker-content .fin-cur {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
