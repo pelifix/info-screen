@@ -495,13 +495,23 @@
         }
     }
 
-    async function loadFeed(type) {
+    async function loadFeed(type, retryCount) {
         var meta = FEED_META[type];
         var srcKey = meta ? meta.srcKey : type;
         setSource(srcKey, 'loading');
         try {
             var url = CONFIG.rssApi + encodeURIComponent(CONFIG.feeds[type]);
             var resp = await fetch(url, { cache: 'no-store' });
+            if (resp.status === 429) {
+                var attempt = retryCount || 0;
+                if (attempt < 3) {
+                    var delay = (attempt + 1) * 30000;
+                    console.warn('Feed rate-limited (' + type + '), retry in ' + (delay / 1000) + 's');
+                    setSource(srcKey, 'error');
+                    setTimeout(function() { loadFeed(type, attempt + 1); }, delay);
+                    return;
+                }
+            }
             if (!resp.ok) throw new Error('Feed fetch failed: ' + type);
             var data = await resp.json();
             if (data.status !== 'ok' || !data.items || !data.items.length) throw new Error('No items in feed: ' + type);
