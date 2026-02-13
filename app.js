@@ -1676,16 +1676,16 @@
             var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
             var lastWeek = fmtDateLocal(lastWeekDay);
 
-            // Simple URL — fetch recent records via CORS proxy, filter client-side
+            // Fetch recent records via allorigins CORS proxy, filter client-side
             var apiUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource + '&limit=500&sort=_id+desc';
-            var proxyUrl = CONFIG.corsProxy + encodeURIComponent(apiUrl);
+            var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
 
             var resp = await fetch(proxyUrl);
             if (!resp.ok) throw new Error('Bike count proxy HTTP ' + resp.status);
-            var text = await resp.text();
+            var wrapper = await resp.json();
             var data;
-            try { data = JSON.parse(text); }
-            catch (e) { throw new Error('Bike count not JSON: ' + text.substring(0, 100)); }
+            try { data = JSON.parse(wrapper.contents); }
+            catch (e) { throw new Error('Bike count not JSON: ' + (wrapper.contents || '').substring(0, 100)); }
 
             var allRecords = data.result ? data.result.records : [];
 
