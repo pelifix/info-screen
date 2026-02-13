@@ -703,7 +703,8 @@
         if (events.length > 5) {
             var inner = document.createElement('div');
             inner.className = 'events-scroll';
-            inner.innerHTML = html + html;
+            var sep = '<div class="events-sep"><span></span></div>';
+            inner.innerHTML = html + sep + html + sep;
             var duration = events.length * 4;
             inner.style.animationDuration = duration + 's';
             eventsEl.appendChild(inner);

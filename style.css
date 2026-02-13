@@ -417,6 +417,14 @@ body.hide-cursor { cursor: none; }
     from { transform: translate3d(0, 0, 0); }
     to { transform: translate3d(0, -50%, 0); }
 }
+.events-sep {
+    display: flex; align-items: center; justify-content: center;
+    padding: 6px 0;
+}
+.events-sep span {
+    width: 40px; height: 2px; border-radius: 1px;
+    background: var(--border-accent); opacity: 0.5;
+}
 .event-item {
     display: flex; align-items: center; gap: 8px;
     padding: 3px 0; border-bottom: 1px solid var(--border);
