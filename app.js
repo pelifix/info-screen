@@ -1487,6 +1487,7 @@
             var lwEdges = data.data.lastWeek.volume.byHour.edges;
             trafficHours = parseTrafficHours(todayEdges);
             trafficLastWeek = parseTrafficHours(lwEdges);
+            console.log('Traffic: today=' + trafficHours.length + 'h, lastWeek=' + trafficLastWeek.length + 'h', trafficHours);
 
             computeTrafficState();
 
@@ -1701,6 +1702,7 @@
 
             bikeCountHours = parseBikeCountRecords(todayRecords);
             bikeCountLastWeek = parseBikeCountRecords(lwRecords);
+            console.log('Bike count: today=' + todayRecords.length + ' records, lastWeek=' + lwRecords.length + ' records, hours=' + bikeCountHours.length, bikeCountHours);
 
             computeBikeCountState();
 
