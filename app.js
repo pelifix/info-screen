@@ -40,6 +40,8 @@
         busStopName: 'Vestre Svanholmen',
         busDepartures: 5,
         busRefresh: 45 * 1000,
+        bikeStations: ['YKO:Station:190', 'YKO:Station:192'],
+        bikeRefresh: 60 * 1000,
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
@@ -55,6 +57,7 @@
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
+        bysykler:    { label: 'Bysykler',    status: 'pending', refresh: CONFIG.bikeRefresh },
         buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh },
         konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh },
         folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh },
@@ -99,12 +102,14 @@
         var el = document.getElementById('source-status');
         if (!el) return;
         var anyLoading = false, anySoon = false;
+        var refreshEl = el.querySelector('.refresh-label');
         el.innerHTML = Object.keys(SOURCES).map(function(key) {
             var s = SOURCES[key];
             if (s.status === 'loading') anyLoading = true;
             if (s.status === 'soon') anySoon = true;
             return '<div class="source-dot"><div class="dot ' + s.status + '"></div>' + s.label + '</div>';
         }).join('');
+        if (refreshEl) el.appendChild(refreshEl);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
@@ -846,6 +851,72 @@
 
     setTimeout(function() { loadBusDepartures(); }, 14000);
     setInterval(loadBusDepartures, CONFIG.busRefresh);
+
+    /* ═══ CITY BIKES (Entur GBFS) ═══ */
+    var bikeEl = document.getElementById('bike-list');
+
+    function renderBikeStations(stations) {
+        bikeEl.innerHTML = '';
+        if (!stations.length) {
+            bikeEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen stasjoner tilgjengelig</div>';
+            return;
+        }
+        stations.forEach(function(s) {
+            var div = document.createElement('div');
+            div.className = 'bike-item';
+            var avail = s.available;
+            var colorClass = avail > 0 ? 'bike-ok' : 'bike-none';
+            div.innerHTML =
+                '<div class="bike-name">' + escapeHtml(s.name) + '</div>' +
+                '<div class="bike-avail ' + colorClass + '">' +
+                    '<span class="bike-dot"></span>' +
+                    avail + ' ' + (avail === 1 ? 'sykkel' : 'sykler') +
+                '</div>';
+            bikeEl.appendChild(div);
+        });
+    }
+
+    async function loadBikeStations() {
+        setSource('bysykler', 'loading');
+        try {
+            var headers = { 'ET-Client-Name': 'pelifix-infoscreen' };
+            var opts = { cache: 'no-store', headers: headers };
+            var results = await Promise.all([
+                fetch('https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_information', opts),
+                fetch('https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_status', opts)
+            ]);
+            if (!results[0].ok || !results[1].ok) throw new Error('GBFS API failed');
+            var infoData = await results[0].json();
+            var statusData = await results[1].json();
+
+            var infoMap = {};
+            (infoData.data.stations || []).forEach(function(s) { infoMap[s.station_id] = s; });
+            var statusMap = {};
+            (statusData.data.stations || []).forEach(function(s) { statusMap[s.station_id] = s; });
+
+            var stations = CONFIG.bikeStations.map(function(id) {
+                var info = infoMap[id] || {};
+                var status = statusMap[id] || {};
+                var name = info.name || id;
+                if (Array.isArray(name)) name = (name[0] && name[0].text) || id;
+                return {
+                    name: name,
+                    available: status.num_vehicles_available || 0,
+                    docks: status.num_docks_available || 0,
+                    renting: status.is_renting !== false
+                };
+            });
+
+            renderBikeStations(stations);
+            setSource('bysykler', 'ok');
+        } catch (e) {
+            console.warn('Bike stations error:', e);
+            setSource('bysykler', 'error');
+        }
+    }
+
+    setTimeout(function() { loadBikeStations(); }, 18000);
+    setInterval(loadBikeStations, CONFIG.bikeRefresh);
 
     /* ═══ TICKER ═══ */
     var tickerEl = document.getElementById('ticker-content');

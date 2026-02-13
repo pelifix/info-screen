@@ -285,7 +285,7 @@ body.hide-cursor { cursor: none; }
     grid-area: widgets; background: var(--bg-panel);
     border-left: 1px solid var(--border);
     display: flex; flex-direction: column;
-    padding: 10px 18px 6px; gap: 6px;
+    padding: 8px 10px 6px; gap: 5px;
     overflow: hidden; position: relative;
 }
 .widgets::before {
@@ -296,12 +296,12 @@ body.hide-cursor { cursor: none; }
 
 .widget-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 12px 16px; position: relative;
+    border-radius: var(--radius-sm); padding: 8px 12px; position: relative;
 }
 .widget-label {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.8rem; font-weight: var(--display-weight);
     text-transform: uppercase; letter-spacing: 2px;
-    color: var(--accent); margin-bottom: 6px;
+    color: var(--accent); margin-bottom: 4px;
     display: flex; align-items: center; gap: 8px;
 }
 .widget-label-line {
@@ -365,8 +365,7 @@ body.hide-cursor { cursor: none; }
 .refresh-label {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.7rem;
     color: var(--text-secondary); letter-spacing: 0.5px;
-    white-space: nowrap; text-align: right;
-    margin-top: 4px;
+    white-space: nowrap; margin-left: auto;
 }
 .refresh-prefix {
     color: var(--text-dim);
@@ -374,11 +373,11 @@ body.hide-cursor { cursor: none; }
 
 /* Weather */
 .weather-row { display: flex; align-items: center; gap: 12px; }
-.weather-icon { font-size: 2.6rem; line-height: 1; }
-.weather-temp { font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 2.2rem; font-weight: var(--display-weight); line-height: 1; }
-.weather-desc { font-size: 1.05rem; color: var(--text-secondary); }
-.weather-detail { font-size: 1rem; color: var(--text-secondary); }
-.weather-location { font-size: 0.9rem; color: var(--text-secondary); margin-top: 1px; }
+.weather-icon { font-size: 2rem; line-height: 1; }
+.weather-temp { font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.7rem; font-weight: var(--display-weight); line-height: 1; }
+.weather-desc { font-size: 0.95rem; color: var(--text-secondary); }
+.weather-detail { font-size: 0.9rem; color: var(--text-secondary); }
+.weather-location { font-size: 0.8rem; color: var(--text-secondary); margin-top: 1px; }
 
 
 /* Daily Image */
@@ -414,14 +413,14 @@ body.hide-cursor { cursor: none; }
 .di-dot.active { background: var(--accent); width: 14px; border-radius: 3px; }
 
 /* Events */
-.events-list { display: flex; flex-direction: column; gap: 5px; }
+.events-list { display: flex; flex-direction: column; gap: 3px; }
 .event-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 4px 0; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    padding: 3px 0; border-bottom: 1px solid var(--border);
 }
 .event-item:last-child { border-bottom: none; }
 .event-icon {
-    width: 34px; height: 34px; min-width: 34px; border-radius: 6px;
+    width: 30px; height: 30px; min-width: 30px; border-radius: 6px;
     overflow: hidden; background: var(--bg-deep);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.2rem; line-height: 1;
@@ -475,6 +474,35 @@ body.hide-cursor { cursor: none; }
     background: #4ade80; margin-right: 3px; vertical-align: middle;
 }
 
+/* ═══ CITY BIKES ═══ */
+.bike-list { display: flex; flex-direction: column; gap: 4px; }
+.bike-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+    line-height: 1.2;
+}
+.bike-item:last-child { border-bottom: none; }
+.bike-name {
+    flex: 1; min-width: 0;
+    font-family: var(--font-display); letter-spacing: var(--display-spacing);
+    font-size: 0.9rem; font-weight: var(--display-weight);
+    color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bike-name::before { content: '\1F6B2  '; font-size: 1.15rem; vertical-align: 0.1em; }
+.bike-avail {
+    font-family: var(--font-display); letter-spacing: var(--display-spacing);
+    font-size: 0.9rem; font-weight: var(--display-weight);
+    color: var(--text-primary); white-space: nowrap;
+}
+.bike-avail.bike-ok { color: #4ade80; }
+.bike-avail.bike-none { color: var(--text-dim); }
+.bike-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    margin-right: 3px; vertical-align: middle;
+}
+.bike-ok .bike-dot { background: #4ade80; }
+.bike-none .bike-dot { background: var(--text-dim); }
 
 /* Source Status */
 .source-status {
