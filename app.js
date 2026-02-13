@@ -259,46 +259,32 @@
         heroTabsBar.innerHTML = '';
         if (heroItems.length <= 1) return;
         var dur = (CONFIG.heroInterval / 1000) + 's';
-        heroItems.forEach(function(item, i) {
+        var len = heroItems.length;
+        for (var n = 0; n < len; n++) {
+            var idx = (heroIndex + n) % len;
+            var item = heroItems[idx];
             var meta = FEED_META[item.source];
             var label = meta ? meta.label : 'Nyheter';
             var colorClass = meta ? meta.color : '';
             var srcColor = colorClass ? getComputedStyle(document.documentElement).getPropertyValue('--' + colorClass).trim() : '#e8a83e';
             var tab = document.createElement('div');
             tab.className = 'hero-tab';
-            tab.dataset.color = srcColor;
-            if (i < heroIndex) tab.classList.add('done');
-            else if (i === heroIndex) tab.classList.add('active');
+            if (n === 0) tab.classList.add('active');
             var fill = document.createElement('div');
             fill.className = 'hero-tab-fill';
             fill.style.background = srcColor;
-            if (i === heroIndex) fill.style.animationDuration = dur;
+            if (n === 0) fill.style.animationDuration = dur;
             var lbl = document.createElement('span');
             lbl.className = 'hero-tab-label';
             lbl.textContent = label;
             tab.appendChild(fill);
             tab.appendChild(lbl);
             heroTabsBar.appendChild(tab);
-        });
+        }
     }
 
     function updateHeroProgress() {
-        var tabs = heroTabsBar.querySelectorAll('.hero-tab');
-        var dur = (CONFIG.heroInterval / 1000) + 's';
-        for (var i = 0; i < tabs.length; i++) {
-            tabs[i].classList.remove('done', 'active');
-            var fill = tabs[i].querySelector('.hero-tab-fill');
-            fill.style.animation = 'none';
-            fill.style.animationDuration = '';
-            if (i < heroIndex) {
-                tabs[i].classList.add('done');
-            } else if (i === heroIndex) {
-                tabs[i].classList.add('active');
-                void fill.offsetWidth;
-                fill.style.animation = '';
-                fill.style.animationDuration = dur;
-            }
-        }
+        renderHeroProgress();
     }
 
     var feedQueue = [];
