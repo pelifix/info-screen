@@ -227,6 +227,20 @@
         newCard.innerHTML = html;
         heroEl.insertBefore(newCard, heroEl.querySelector('.hero-divider'));
         void newCard.offsetWidth;
+
+        // Dynamically shrink hero description font if text overflows
+        var heroDesc = newCard.querySelector('.hero-desc');
+        if (heroDesc) {
+            var fontSize = 1.35;
+            var minSize = 0.95;
+            var step = 0.05;
+            while (fontSize > minSize && heroDesc.scrollHeight > heroDesc.clientHeight) {
+                fontSize -= step;
+                heroDesc.style.fontSize = fontSize + 'rem';
+                heroDesc.style.lineHeight = String(1.35 + (fontSize - minSize) * 0.375);
+            }
+        }
+
         newCard.classList.add('active');
 
         for (var i = 0; i < cards.length; i++) {

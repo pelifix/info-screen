@@ -107,7 +107,7 @@ body.hide-cursor { cursor: none; }
 
 .hero-text {
     display: flex; flex-direction: column;
-    justify-content: center; gap: 12px; min-width: 0;
+    justify-content: flex-start; gap: 12px; min-width: 0;
     min-height: 0; overflow: hidden;
 }
 .hero-source {
@@ -139,7 +139,7 @@ body.hide-cursor { cursor: none; }
     font-size: 1.35rem; line-height: 1.5; color: var(--text-secondary);
     flex: 1; min-height: 0; overflow: hidden;
 }
-.hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; }
+.hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; text-align: right; }
 
 .hero-divider { display: none; }
 .hero-progress {
@@ -193,7 +193,7 @@ body.hide-cursor { cursor: none; }
     justify-content: flex-start; min-width: 0; gap: 4px;
 }
 .article-time {
-    text-align: right;
+    text-align: right; margin-top: auto;
 }
 .article-source {
     font-family: var(--font-display); font-size: 0.6rem; font-weight: 600;
