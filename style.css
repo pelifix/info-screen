@@ -64,7 +64,7 @@ body.hide-cursor { cursor: none; }
 .hero-card {
     position: absolute; inset: 0;
     display: grid; grid-template-columns: 460px 1fr;
-    gap: 32px; padding: 28px 36px;
+    gap: 32px; padding: 40px 36px 28px;
     transform: translateX(100%);
     transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -89,12 +89,15 @@ body.hide-cursor { cursor: none; }
     font-size: 5rem; opacity: 0.1; animation: none;
 }
 
-.hero-badge {
+.hero-badges {
     position: absolute; top: 14px; left: 14px;
+    display: flex; gap: 8px; align-items: center; z-index: 2;
+}
+.hero-badge {
     font-family: var(--font-display);
     font-size: 0.8rem; font-weight: 700;
     letter-spacing: 2px; text-transform: uppercase;
-    padding: 6px 14px; border-radius: 6px; z-index: 2;
+    padding: 6px 14px; border-radius: 6px;
 }
 .hero-badge.src-nrk { background: var(--src-nrk); color: var(--bg-deep); }
 .hero-badge.src-nrk-sport { background: var(--src-nrk-sport); color: var(--bg-deep); }
@@ -123,10 +126,12 @@ body.hide-cursor { cursor: none; }
 .hero-source.src-dn { color: var(--src-dn); }
 .hero-source.src-tu { color: var(--src-tu); }
 .hero-top-badge {
-    font-size: 0.65rem; font-weight: 700; letter-spacing: 1px;
-    margin-left: 10px; padding: 2px 8px; border-radius: 3px;
-    border: 1px solid currentColor;
-    display: inline-block; vertical-align: middle;
+    font-family: var(--font-display);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
+    padding: 5px 12px; border-radius: 6px;
+    border: 1.5px solid rgba(255,255,255,0.7);
+    color: rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.3);
 }
 
 .hero-title {
@@ -142,23 +147,35 @@ body.hide-cursor { cursor: none; }
 .hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; text-align: right; }
 
 .hero-divider { display: none; }
-.hero-progress {
-    position: absolute; bottom: 10px; left: 28px; right: 28px;
-    display: flex; gap: 4px; z-index: 6;
+.hero-tabs-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 16px; z-index: 6;
 }
-.hero-prog-seg {
-    flex: 1; height: 3px; border-radius: 2px;
-    background: rgba(255,255,255,0.12); overflow: hidden;
+.hero-tab {
+    font-family: var(--font-display); font-size: 0.6rem; font-weight: 600;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 3px 0; border-radius: 3px;
+    color: rgba(255,255,255,0.2);
+    transition: all 0.4s ease; position: relative; overflow: hidden;
+    flex: 1; text-align: center;
 }
-.hero-prog-fill {
-    height: 100%; width: 0%; border-radius: 2px;
-    background: var(--accent);
+.hero-tab.active .hero-tab-label {
+    color: rgba(255,255,255,0.95);
 }
-.hero-prog-seg.done .hero-prog-fill { width: 100%; }
-.hero-prog-seg.active .hero-prog-fill {
-    animation: hero-prog-fill linear forwards;
+.hero-tab.done {
+    color: rgba(255,255,255,0.3);
 }
-@keyframes hero-prog-fill { from { width: 0%; } to { width: 100%; } }
+.hero-tab-fill {
+    position: absolute; inset: 0; border-radius: 3px;
+    transform-origin: left; transform: scaleX(0);
+    opacity: 0.3;
+}
+.hero-tab.active .hero-tab-fill {
+    animation: hero-tab-fill linear forwards;
+}
+.hero-tab-label { position: relative; z-index: 1; }
+@keyframes hero-tab-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* ═══ FEED ═══ */
 .feed {
@@ -228,18 +245,22 @@ body.hide-cursor { cursor: none; }
 .article-latest.src-vg-sport { border-left-color: var(--src-vg-sport); }
 .article-latest.src-dn { border-left-color: var(--src-dn); }
 .article-latest.src-tu { border-left-color: var(--src-tu); }
+.article-badges {
+    position: absolute; top: 4px; left: 4px;
+    display: flex; gap: 4px; align-items: center; z-index: 2;
+}
 .article-ny {
-    font-size: 0.6rem; font-weight: 700; letter-spacing: 1px;
-    margin-left: 8px; padding: 2px 6px; border-radius: 3px;
-    border: 1px solid currentColor;
-    display: inline-block; vertical-align: middle;
+    font-family: var(--font-display); font-size: 0.5rem; font-weight: 700;
+    letter-spacing: 1px; padding: 2px 5px; border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.7);
+    color: rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.3);
 }
 
 .article-img-wrap {
     position: relative; width: 180px; align-self: stretch;
 }
 .article-source-overlay {
-    position: absolute; top: 4px; left: 4px;
     font-family: var(--font-display); font-size: 0.55rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 1px;
     padding: 2px 5px; border-radius: 3px;

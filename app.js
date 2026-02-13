@@ -211,11 +211,11 @@
 
         var html =
             '<div class="hero-img-wrap">' +
-                '<div class="hero-badge ' + colorClass + '">' + badgeText + '</div>' +
+                '<div class="hero-badges"><div class="hero-badge ' + colorClass + '">' + badgeText + '</div>' +
+                '<div class="hero-top-badge">TOPP</div></div>' +
                 imgContent +
             '</div>' +
             '<div class="hero-text">' +
-                '<div class="hero-source ' + colorClass + '">' + badgeText + '<span class="hero-top-badge">TOPP</span></div>' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
                 (item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                 '<div class="hero-time">' + formatTimeCats(item) + '</div>' +
@@ -253,39 +253,47 @@
         }, 800);
     }
 
+    var heroTabsBar = document.getElementById('hero-tabs-bar');
+
     function renderHeroProgress() {
-        var existing = heroEl.querySelector('.hero-progress');
-        if (existing) existing.remove();
+        heroTabsBar.innerHTML = '';
         if (heroItems.length <= 1) return;
-        var bar = document.createElement('div');
-        bar.className = 'hero-progress';
         var dur = (CONFIG.heroInterval / 1000) + 's';
-        heroItems.forEach(function(_, i) {
-            var seg = document.createElement('div');
-            seg.className = 'hero-prog-seg';
-            if (i < heroIndex) seg.classList.add('done');
-            else if (i === heroIndex) seg.classList.add('active');
+        heroItems.forEach(function(item, i) {
+            var meta = FEED_META[item.source];
+            var label = meta ? meta.label : 'Nyheter';
+            var colorClass = meta ? meta.color : '';
+            var srcColor = colorClass ? getComputedStyle(document.documentElement).getPropertyValue('--' + colorClass).trim() : '#e8a83e';
+            var tab = document.createElement('div');
+            tab.className = 'hero-tab';
+            tab.dataset.color = srcColor;
+            if (i < heroIndex) tab.classList.add('done');
+            else if (i === heroIndex) tab.classList.add('active');
             var fill = document.createElement('div');
-            fill.className = 'hero-prog-fill';
+            fill.className = 'hero-tab-fill';
+            fill.style.background = srcColor;
             if (i === heroIndex) fill.style.animationDuration = dur;
-            seg.appendChild(fill);
-            bar.appendChild(seg);
+            var lbl = document.createElement('span');
+            lbl.className = 'hero-tab-label';
+            lbl.textContent = label;
+            tab.appendChild(fill);
+            tab.appendChild(lbl);
+            heroTabsBar.appendChild(tab);
         });
-        heroEl.appendChild(bar);
     }
 
     function updateHeroProgress() {
-        var segs = heroEl.querySelectorAll('.hero-prog-seg');
+        var tabs = heroTabsBar.querySelectorAll('.hero-tab');
         var dur = (CONFIG.heroInterval / 1000) + 's';
-        for (var i = 0; i < segs.length; i++) {
-            segs[i].classList.remove('done', 'active');
-            var fill = segs[i].querySelector('.hero-prog-fill');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.remove('done', 'active');
+            var fill = tabs[i].querySelector('.hero-tab-fill');
             fill.style.animation = 'none';
             fill.style.animationDuration = '';
             if (i < heroIndex) {
-                segs[i].classList.add('done');
+                tabs[i].classList.add('done');
             } else if (i === heroIndex) {
-                segs[i].classList.add('active');
+                tabs[i].classList.add('active');
                 void fill.offsetWidth;
                 fill.style.animation = '';
                 fill.style.animationDuration = dur;
@@ -306,10 +314,10 @@
         var imgHtml = item.image
             ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
             : '<div class="article-img no-image">\u{1F4F0}</div>';
-        var nyBadge = isLatest ? '<span class="article-ny">NY</span>' : '';
+        var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
-                '<div class="article-source-overlay ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + nyBadge + '</div>' +
+                '<div class="article-badges"><div class="article-source-overlay ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' + nyBadge + '</div>' +
             '</div>';
         div.innerHTML =
             '<div class="article-body">' +
