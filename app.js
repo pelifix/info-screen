@@ -49,6 +49,10 @@
         trafficPointId: '12478V320582',
         trafficPointName: 'E39 J\u00e5tten',
         trafficRefresh: 5 * 60 * 1000,
+        bikeCountApi: 'https://opencom.no/api/action/datastore_search',
+        bikeCountResource: 'c584f88c-c967-4ced-9e47-4126eb7b1e14',
+        bikeCountStation: 'Møllebukta',
+        bikeCountRefresh: 10 * 60 * 1000,
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
@@ -63,6 +67,7 @@
         tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh },
         strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh },
         trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh },
+        sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
@@ -85,6 +90,7 @@
         tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
         trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
+        sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
     };
 
     var lastRefreshTime = null;
@@ -213,6 +219,7 @@
     var rawFeeds = {};
     Object.keys(CONFIG.feeds).forEach(function(k) { rawFeeds[k] = []; });
     rawFeeds.trafikk = [];
+    rawFeeds.sykkel = [];
 
     function renderHero(item) {
         if (!item) return;
@@ -319,11 +326,13 @@
         div.setAttribute('data-title', item.title);
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
         var sparkType = isSpark ? item.image.slice(6) : '';
-        var imgHtml = sparkType === 'trafikk'
-            ? '<div class="article-img">' + buildTrafficCardHtml('small') + '</div>'
-            : isSpark
-                ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
-                : item.image
+        var imgHtml = sparkType === 'sykkel'
+            ? '<div class="article-img">' + buildBikeCountCardHtml() + '</div>'
+            : sparkType === 'trafikk'
+                ? '<div class="article-img">' + buildTrafficCardHtml('small') + '</div>'
+                : isSpark
+                    ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
+                    : item.image
                     ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
                     : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
@@ -430,9 +439,10 @@
         heroItems = [];
         var heroSeen = {};
         var heroTitles = {};
+        var heroSkip = { sykkel: 1 };
         for (var h = 0; h < merged.length && heroItems.length < CONFIG.heroCount; h++) {
             var src = merged[h].source || '';
-            if (heroSeen[src]) continue;
+            if (heroSkip[src] || heroSeen[src]) continue;
             var heroKey = merged[h].title.toLowerCase().trim().replace(/[\s\u2013\u2014\-–—:]+/g, ' ');
             if (heroTitles[heroKey]) continue;
             heroSeen[src] = true;
@@ -526,7 +536,7 @@
     // Stagger initial loads to avoid API rate limits
     var feedKeys = Object.keys(CONFIG.feeds);
     feedKeys.forEach(function(key, i) {
-        setTimeout(function() { loadFeed(key); }, i * 1500);
+        setTimeout(function() { loadFeed(key); }, i * 2000);
         setInterval(function() { loadFeed(key); }, CONFIG.feedRefresh);
     });
     window._feedTimer = setInterval(scrollFeed, CONFIG.feedScrollInterval);
@@ -1034,7 +1044,7 @@
         var parts = [];
         var newsIdx = 0;
         var chunk = 2;
-        var dataSlot = 0; // 0 = marked, 1 = strøm, 2 = trafikk
+        var dataSlot = 0; // 0 = marked, 1 = strøm, 2 = trafikk, 3 = sykkel
 
         while (newsIdx < headlines.length) {
             var slice = headlines.slice(newsIdx, newsIdx + chunk);
@@ -1064,8 +1074,14 @@
                 }
                 parts.push('<span class="traffic-item"><span class="traffic-val">' + trafficState.currentVol + '</span><span class="traffic-meta"><span class="traffic-label">' + escapeHtml(trafficState.level) + '</span><span class="traffic-unit">kjt/t</span></span></span>');
                 parts.push('<span class="sep">\u2022</span>');
+            } else if (dataSlot === 3 && bikeCountState.todayTotal) {
+                if (bikeCountHours.length >= 2) {
+                    parts.push('<span class="bike-count-spark">' + buildSparklineSvg(bikeCountHours.map(function(h) { return h.count; }), '#10b981') + '</span>');
+                }
+                parts.push('<span class="bike-count-item"><span class="bike-count-val">' + bikeCountState.todayTotal + '</span><span class="bike-count-meta"><span class="bike-count-label">syklister</span><span class="bike-count-unit">M\u00f8llebukta</span></span></span>');
+                parts.push('<span class="sep">\u2022</span>');
             }
-            dataSlot = (dataSlot + 1) % 3;
+            dataSlot = (dataSlot + 1) % 4;
         }
 
         var html = parts.join('');
@@ -1501,6 +1517,216 @@
 
     setTimeout(function() { loadTrafficData(); }, 26000);
     setInterval(loadTrafficData, CONFIG.trafficRefresh);
+
+    /* ═══ BIKE COUNTER (Møllebukta) ═══ */
+    var bikeCountHours = [];
+    var bikeCountLastWeek = [];
+    var bikeCountState = { todayTotal: 0, currentHour: 0, trend: '', label: '', descHtml: '', avgSpeed: 0, temp: 0 };
+
+    function computeBikeCountState() {
+        if (!bikeCountHours.length) return;
+        var total = 0;
+        bikeCountHours.forEach(function(h) { total += h.count; });
+        var cur = bikeCountHours[bikeCountHours.length - 1];
+        var prev = bikeCountHours.length > 1 ? bikeCountHours[bikeCountHours.length - 2] : null;
+
+        // Trend
+        var trend = '';
+        if (prev && prev.count > 0) {
+            var pct = ((cur.count - prev.count) / prev.count) * 100;
+            if (pct > 20) trend = 'Flere syklister';
+            else if (pct < -20) trend = 'F\u00e6rre syklister';
+            else trend = 'Stabilt';
+        }
+
+        // vs last week
+        var vsWeek = '';
+        var lwTotal = 0;
+        if (bikeCountLastWeek.length) {
+            bikeCountLastWeek.forEach(function(h) { lwTotal += h.count; });
+            if (lwTotal > 0) {
+                var diff = Math.round(((total - lwTotal) / lwTotal) * 100);
+                vsWeek = (diff >= 0 ? '+' : '') + diff + '% vs forrige ' + dayN[new Date().getDay()].toLowerCase();
+            }
+        }
+
+        // Average speed and temp from latest hour
+        var avgSpeed = cur.speed || 0;
+        var temp = cur.temp;
+
+        // Dynamic title
+        var title;
+        if (total === 0) {
+            title = 'Ingen syklister forbi M\u00f8llebukta enn\u00e5';
+        } else if (total < 50) {
+            title = total + ' syklister forbi M\u00f8llebukta i dag';
+        } else if (total < 200) {
+            title = 'Aktiv sykkeldag \u2014 ' + total + ' forbi M\u00f8llebukta';
+        } else {
+            title = 'Travelt p\u00e5 sykkelveien \u2014 ' + total + ' forbi M\u00f8llebukta';
+        }
+
+        // Description
+        var descLines = [];
+        descLines.push('\uD83D\uDEB4 ' + total + ' syklister totalt i dag');
+        descLines.push('\u23F1\uFE0F Siste time: ' + cur.count);
+        if (avgSpeed > 0) descLines.push('\uD83D\uDCA8 Snittfart: ' + avgSpeed + ' km/t');
+        if (temp !== null && temp !== undefined) descLines.push('\uD83C\uDF21\uFE0F Veitemp: ' + temp + '\u00b0C');
+        if (vsWeek) descLines.push('\uD83D\uDCC5 ' + vsWeek);
+
+        bikeCountState = {
+            todayTotal: total,
+            currentHour: cur.count,
+            trend: trend,
+            label: title,
+            descHtml: descLines.join('<br>'),
+            avgSpeed: avgSpeed,
+            temp: temp,
+        };
+    }
+
+    function buildBikeCountCardSvg(todayData, lastWeekData, w, h) {
+        if (!todayData || todayData.length < 2) return '';
+        var pad = 4;
+        var allVals = todayData.map(function(d) { return d.count; });
+        if (lastWeekData && lastWeekData.length) {
+            allVals = allVals.concat(lastWeekData.map(function(d) { return d.count; }));
+        }
+        var min = 0;
+        var max = Math.max.apply(null, allVals);
+        var range = max - min || 1;
+        var top = h * 0.15, bot = h - pad;
+
+        function hourToX(hr) { return pad + (hr / 23) * (w - pad * 2); }
+        function valToY(v) { return top + (1 - (v - min) / range) * (bot - top); }
+        function buildPoints(arr) {
+            return arr.map(function(d) {
+                return hourToX(parseInt(d.hour)).toFixed(1) + ',' + valToY(d.count).toFixed(1);
+            });
+        }
+
+        var todayPts = buildPoints(todayData);
+        var polyline = todayPts.join(' ');
+        var lastHr = parseInt(todayData[todayData.length - 1].hour);
+        var lastX = hourToX(lastHr);
+        var firstX = hourToX(parseInt(todayData[0].hour));
+        var areaPath = 'M' + todayPts[0] + ' ' + todayPts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
+            ' L' + lastX.toFixed(1) + ',' + h + ' L' + firstX.toFixed(1) + ',' + h + ' Z';
+
+        var lwLine = '';
+        if (lastWeekData && lastWeekData.length >= 2) {
+            var lwPts = buildPoints(lastWeekData);
+            lwLine = '<polyline points="' + lwPts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,4" stroke-linejoin="round" stroke-linecap="round"/>';
+        }
+
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
+            '<defs><linearGradient id="bike-count-fill" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/>' +
+            '<stop offset="100%" stop-color="#10b981" stop-opacity="0.05"/>' +
+            '</linearGradient></defs>' +
+            lwLine +
+            '<path d="' + areaPath + '" fill="url(#bike-count-fill)"/>' +
+            '<polyline points="' + polyline + '" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+            '</svg>';
+    }
+
+    function buildBikeCountCardHtml() {
+        var total = bikeCountState.todayTotal || '';
+        var svg = buildBikeCountCardSvg(bikeCountHours, bikeCountLastWeek, 400, 200);
+        return '<div class="bike-count-card-visual">' +
+            '<div class="bike-count-card-spark">' + svg + '</div>' +
+            '<div class="bike-count-card-overlay">' +
+                '<div class="bike-count-card-emoji" style="font-size:2rem;">\uD83D\uDEB2</div>' +
+                (total ? '<div class="bike-count-card-vol" style="font-size:1rem;">' + total + '<span class="bike-count-card-unit" style="font-size:0.55rem;"> i dag</span></div>' : '') +
+            '</div>' +
+        '</div>';
+    }
+
+    function parseBikeCountRecords(records) {
+        // Group by hour, sum both lanes
+        var hourMap = {};
+        records.forEach(function(r) {
+            var time = r.Time || '';
+            var hour = time.split(':')[0];
+            if (!hour) return;
+            var h = parseInt(hour);
+            if (!hourMap[h]) hourMap[h] = { hour: String(h).padStart(2, '0'), count: 0, speed: 0, temp: null, lanes: 0 };
+            hourMap[h].count += (r.Count || 0);
+            if (r.Average_Speed) { hourMap[h].speed += r.Average_Speed; hourMap[h].lanes++; }
+            if (r.Average_Temperature !== null && r.Average_Temperature !== undefined) hourMap[h].temp = r.Average_Temperature;
+        });
+        var hours = Object.keys(hourMap).sort(function(a, b) { return a - b; });
+        return hours.map(function(h) {
+            var d = hourMap[h];
+            if (d.lanes > 0) d.speed = Math.round(d.speed / d.lanes);
+            return d;
+        });
+    }
+
+    function fmtDateLocal(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    async function loadBikeCountData() {
+        setSource('sykkel', 'loading');
+        try {
+            var now = new Date();
+            var today = fmtDateLocal(now);
+            var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+            var lastWeek = fmtDateLocal(lastWeekDay);
+
+            var baseUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource;
+            var filtersToday = '{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + today + 'T00:00:00"}';
+            var filtersLw = '{"Station_Name":"' + CONFIG.bikeCountStation + '","Date":"' + lastWeek + 'T00:00:00"}';
+
+            // Fetch today + last week in parallel (via CORS proxy)
+            var todayUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersToday + '&limit=50&sort=_id asc');
+            var lwUrl = CONFIG.corsProxy + encodeURIComponent(baseUrl + '&filters=' + filtersLw + '&limit=50&sort=_id asc');
+
+            function fetchJson(url) {
+                return fetch(url).then(function(r) {
+                    var ct = r.headers.get('content-type') || '';
+                    if (!r.ok || ct.indexOf('json') === -1) throw new Error('Proxy returned non-JSON (' + r.status + ')');
+                    return r.json();
+                });
+            }
+
+            var results = await Promise.all([
+                fetchJson(todayUrl).catch(function() { return { result: { records: [] } }; }),
+                fetchJson(lwUrl).catch(function() { return { result: { records: [] } }; }),
+            ]);
+
+            var todayRecords = results[0].result ? results[0].result.records : [];
+            var lwRecords = results[1].result ? results[1].result.records : [];
+
+            bikeCountHours = parseBikeCountRecords(todayRecords);
+            bikeCountLastWeek = parseBikeCountRecords(lwRecords);
+
+            computeBikeCountState();
+
+            // Inject synthetic article (never bumped to top)
+            if (bikeCountHours.length) {
+                rawFeeds.sykkel = [{
+                    title: bikeCountState.label,
+                    descHtml: bikeCountState.descHtml,
+                    pubDate: new Date(now.getTime() - 2 * 3600000).toISOString(),
+                    image: 'spark:sykkel',
+                    source: 'sykkel',
+                    categories: [],
+                }];
+                mergeFeedsAndRender();
+            }
+
+            buildTickerContent();
+            setSource('sykkel', 'ok');
+        } catch (e) {
+            console.warn('Bike count error:', e);
+            setSource('sykkel', 'error');
+        }
+    }
+
+    setTimeout(function() { loadBikeCountData(); }, 34000);
+    setInterval(loadBikeCountData, CONFIG.bikeCountRefresh);
 
     /* ═══ WEATHER ═══ */
     var WX = {
