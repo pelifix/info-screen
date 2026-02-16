@@ -57,24 +57,24 @@
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
     var SOURCES = {
-        nyheter:     { label: 'NRK',         status: 'pending', refresh: CONFIG.feedRefresh },
-        sport:       { label: 'NRK Sport',   status: 'pending', refresh: CONFIG.feedRefresh },
-        e24:         { label: 'E24',         status: 'pending', refresh: CONFIG.feedRefresh },
-        aftenbladet: { label: 'Aftenbladet', status: 'pending', refresh: CONFIG.feedRefresh },
-        vg:          { label: 'VG',          status: 'pending', refresh: CONFIG.feedRefresh },
-        vgSport:     { label: 'VG Sport',    status: 'pending', refresh: CONFIG.feedRefresh },
-        dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh },
-        tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh },
-        strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh },
-        trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh },
-        sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh },
-        marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh },
-        vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh },
-        bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh },
-        bysykler:    { label: 'Bysykler',    status: 'pending', refresh: CONFIG.bikeRefresh },
-        buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh },
-        konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh },
-        folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh },
+        nyheter:     { label: 'NRK',         status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        sport:       { label: 'NRK Sport',   status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        e24:         { label: 'E24',         status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        aftenbladet: { label: 'Aftenbladet', status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        vg:          { label: 'VG',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        vgSport:     { label: 'VG Sport',    status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh, proxy: 'rss2json' },
+        trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh,   proxy: 'none' },
+        sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh, proxy: 'jsonp' },
+        marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh,   proxy: 'codetabs' },
+        vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh,   proxy: 'none' },
+        bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh,     proxy: 'rss2json' },
+        bysykler:    { label: 'Bysykler',    status: 'pending', refresh: CONFIG.bikeRefresh,      proxy: 'none' },
+        buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh,       proxy: 'none' },
+        konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
+        folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
     };
 
     var preRefreshTimers = {};
@@ -139,6 +139,83 @@
     var ecLogoFill = document.getElementById('ec-logo-fill');
 
     renderSourceStatus();
+
+    /* ═══ FETCH INFRASTRUCTURE ═══ */
+    var isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
+
+    function getDevCache(key, url, cacheKey) {
+        if (!isDev) return null;
+        try {
+            var k = cacheKey || ('dev:' + key + ':' + url);
+            var raw = localStorage.getItem(k);
+            if (!raw) return null;
+            var entry = JSON.parse(raw);
+            var ttl = SOURCES[key] ? SOURCES[key].refresh : 5 * 60 * 1000;
+            if (Date.now() - entry.ts > ttl) {
+                localStorage.removeItem(k);
+                return null;
+            }
+            return entry.data;
+        } catch (e) { return null; }
+    }
+
+    function setDevCache(key, url, data, cacheKey) {
+        if (!isDev) return;
+        try {
+            var k = cacheKey || ('dev:' + key + ':' + url);
+            localStorage.setItem(k, JSON.stringify({ ts: Date.now(), data: data }));
+        } catch (e) {
+            // Quota exceeded — clear all dev cache and retry once
+            try {
+                Object.keys(localStorage).forEach(function(k2) {
+                    if (k2.indexOf('dev:') === 0) localStorage.removeItem(k2);
+                });
+                var k = cacheKey || ('dev:' + key + ':' + url);
+                localStorage.setItem(k, JSON.stringify({ ts: Date.now(), data: data }));
+            } catch (e2) { /* give up */ }
+        }
+    }
+
+    async function sourceFetch(sourceKey, url, opts) {
+        opts = opts || {};
+        var proxy = opts.proxy !== undefined ? opts.proxy : (SOURCES[sourceKey] ? SOURCES[sourceKey].proxy : 'none');
+        var parse = opts.parse || 'json';
+        var label = SOURCES[sourceKey] ? SOURCES[sourceKey].label : sourceKey;
+
+        // Check dev cache
+        var cached = getDevCache(sourceKey, url, opts.cacheKey);
+        if (cached !== null) {
+            console.log('[' + label + '] cache → hit');
+            return cached;
+        }
+
+        // Set loading status
+        if (!opts.skipStatus) setSource(sourceKey, 'loading');
+
+        // Build proxied URL
+        var fetchUrl = url;
+        if (proxy === 'rss2json') {
+            fetchUrl = CONFIG.rssApi + encodeURIComponent(url);
+        } else if (proxy === 'codetabs') {
+            fetchUrl = CONFIG.corsProxy + encodeURIComponent(url);
+        }
+
+        // Build fetch options
+        var fetchOpts = { cache: 'no-store' };
+        if (opts.method) fetchOpts.method = opts.method;
+        if (opts.headers) fetchOpts.headers = opts.headers;
+        if (opts.body) fetchOpts.body = opts.body;
+
+        var resp = await fetch(fetchUrl, fetchOpts);
+        if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+
+        var data = parse === 'text' ? await resp.text() : await resp.json();
+
+        // Store in dev cache
+        setDevCache(sourceKey, url, data, opts.cacheKey);
+
+        return data;
+    }
 
     /* ═══ HELPERS ═══ */
     var dayN = ['s\u00f8ndag','mandag','tirsdag','onsdag','torsdag','fredag','l\u00f8rdag'];
@@ -490,12 +567,8 @@
     async function loadFeed(type) {
         var meta = FEED_META[type];
         var srcKey = meta ? meta.srcKey : type;
-        setSource(srcKey, 'loading');
         try {
-            var url = CONFIG.rssApi + encodeURIComponent(CONFIG.feeds[type]);
-            var resp = await fetch(url, { cache: 'no-store' });
-            if (!resp.ok) throw new Error('Feed fetch failed: ' + type);
-            var data = await resp.json();
+            var data = await sourceFetch(srcKey, CONFIG.feeds[type]);
             if (data.status !== 'ok' || !data.items || !data.items.length) throw new Error('No items in feed: ' + type);
             var skipCats = {'nyheter':1,'news':1,'ukategorisert':1,'uncategorized':1,'allmennt':1};
             rawFeeds[type] = data.items.slice(0, 15).map(function(item) {
@@ -601,19 +674,15 @@
         var bingImgs = [];
         var liveImgs = [];
         try {
-            var bingRss = CONFIG.rssApi + encodeURIComponent('https://www.bing.com/HPImageArchive.aspx?format=rss&idx=0&n=3&mkt=en-US');
-            var resp = await fetch(bingRss, { cache: 'no-store' });
-            if (resp.ok) {
-                var data = await resp.json();
-                if (data.status === 'ok' && data.items && data.items.length) {
-                    data.items.forEach(function(item) {
-                        var caption = (item.title || 'Bing').split('(')[0].trim();
-                        var imgUrl = (item.link || item.thumbnail || '').replace('http://', 'https://');
-                        if (imgUrl) {
-                            bingImgs.push({ src: imgUrl, caption: caption, live: false });
-                        }
-                    });
-                }
+            var data = await sourceFetch('bilder', 'https://www.bing.com/HPImageArchive.aspx?format=rss&idx=0&n=3&mkt=en-US', { skipStatus: true });
+            if (data.status === 'ok' && data.items && data.items.length) {
+                data.items.forEach(function(item) {
+                    var caption = (item.title || 'Bing').split('(')[0].trim();
+                    var imgUrl = (item.link || item.thumbnail || '').replace('http://', 'https://');
+                    if (imgUrl) {
+                        bingImgs.push({ src: imgUrl, caption: caption, live: false });
+                    }
+                });
             }
         } catch (e) { console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ERROR ' + e.message); }
         // Radar + webcams
@@ -769,10 +838,7 @@
     }
 
     async function scrapeKonserthus() {
-        var url = CONFIG.corsProxy + encodeURIComponent('https://www.stavanger-konserthus.no/program/');
-        var resp = await fetch(url, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('Konserthus fetch failed');
-        var html = await resp.text();
+        var html = await sourceFetch('konserthus', 'https://www.stavanger-konserthus.no/program/', { parse: 'text', skipStatus: true });
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var articles = doc.querySelectorAll('article.event');
         var events = [];
@@ -796,10 +862,7 @@
     }
 
     async function scrapeFolken() {
-        var url = CONFIG.corsProxy + encodeURIComponent('https://www.folken.no/folken/index.php');
-        var resp = await fetch(url, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('Folken fetch failed');
-        var html = await resp.text();
+        var html = await sourceFetch('folken', 'https://www.folken.no/folken/index.php', { parse: 'text', skipStatus: true });
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var items = doc.querySelectorAll('.list-item');
         var events = [];
@@ -915,19 +978,15 @@
     }
 
     async function loadBusDepartures() {
-        setSource('buss', 'loading');
         try {
-            var resp = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
+            var data = await sourceFetch('buss', 'https://api.entur.io/journey-planner/v3/graphql', {
                 method: 'POST',
-                cache: 'no-store',
                 headers: {
                     'Content-Type': 'application/json',
                     'ET-Client-Name': 'pelifix-infoscreen',
                 },
                 body: JSON.stringify({ query: BUS_QUERY }),
             });
-            if (!resp.ok) throw new Error('Entur API failed');
-            var data = await resp.json();
             var sp = data.data.stopPlace;
             var calls = sp.estimatedCalls || [];
             document.getElementById('bus-stop-name').textContent = sp.name;
@@ -970,15 +1029,13 @@
     async function loadBikeStations() {
         setSource('bysykler', 'loading');
         try {
-            var headers = { 'ET-Client-Name': 'pelifix-infoscreen' };
-            var opts = { cache: 'no-store', headers: headers };
+            var fetchOpts = { skipStatus: true, headers: { 'ET-Client-Name': 'pelifix-infoscreen' } };
             var results = await Promise.all([
-                fetch('https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_information', opts),
-                fetch('https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_status', opts)
+                sourceFetch('bysykler', 'https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_information', Object.assign({}, fetchOpts, { cacheKey: 'dev:bysykler:info' })),
+                sourceFetch('bysykler', 'https://api.entur.io/mobility/v2/gbfs/v3/kolumbusbysykkel/station_status', Object.assign({}, fetchOpts, { cacheKey: 'dev:bysykler:status' }))
             ]);
-            if (!results[0].ok || !results[1].ok) throw new Error('GBFS API failed');
-            var infoData = await results[0].json();
-            var statusData = await results[1].json();
+            var infoData = results[0];
+            var statusData = results[1];
 
             var infoMap = {};
             (infoData.data.stations || []).forEach(function(s) { infoMap[s.station_id] = s; });
@@ -1040,47 +1097,74 @@
     function buildTickerContent() {
         var headlines = getTickerHeadlines();
         if (!headlines.length && !tkFinancial.length && !tkElectricity.length) return;
+
+        // Collect all available data blocks
+        var dataBlocks = [];
+        if (tkFinancial.length) {
+            dataBlocks.push(function() {
+                var p = [];
+                tkFinancial.forEach(function(f) {
+                    var chg = f.change ? fmtChange(f.change) : '';
+                    p.push('<span class="fin-item"><span class="fin-val">' + escapeHtml(f.value) + '</span><span class="fin-meta"><span class="fin-cur">' + escapeHtml(f.label) + '</span>' + chg + '</span></span>');
+                });
+                return p.join('');
+            });
+        }
+        if (tkElectricity.length) {
+            dataBlocks.push(function() {
+                var p = [];
+                if (tkSparkData.length >= 2) {
+                    p.push('<span class="tk-data-spark">' + buildSparklineSvg(tkSparkData) + '</span>');
+                }
+                tkElectricity.forEach(function(e) {
+                    p.push('<span class="tk-data-item tk-elec"><span class="tk-data-val">' + escapeHtml(e.value) + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(e.label) + '</span><span class="tk-data-unit">kr/kWh</span></span></span>');
+                });
+                return p.join('');
+            });
+        }
+        if (trafficState.currentVol) {
+            dataBlocks.push(function() {
+                var p = [];
+                if (trafficHours.length >= 2) {
+                    p.push('<span class="tk-data-spark">' + buildSparklineSvg(trafficHours.map(function(h) { return h.total; }), '#f97316') + '</span>');
+                }
+                p.push('<span class="tk-data-item tk-traffic"><span class="tk-data-val">' + trafficState.currentVol + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(trafficState.level) + '</span><span class="tk-data-unit">kjt/t</span></span></span>');
+                return p.join('');
+            });
+        }
+        if (bikeCountState.todayTotal || bikeCountState.lwTotal) {
+            dataBlocks.push(function() {
+                var p = [];
+                var bikeSparkSrc = bikeCountHours.length >= 2 ? bikeCountHours : bikeCountLastWeek;
+                if (bikeSparkSrc.length >= 2) {
+                    p.push('<span class="tk-data-spark">' + buildSparklineSvg(bikeSparkSrc.map(function(h) { return h.count; }), '#10b981') + '</span>');
+                }
+                var bikeVal = bikeCountState.todayTotal || bikeCountState.lwTotal;
+                var bikeLabel = bikeCountState.todayTotal ? 'i dag' : 'forrige uke';
+                p.push('<span class="tk-data-item tk-bike"><span class="tk-data-val">' + bikeVal + '</span><span class="tk-data-meta"><span class="tk-data-label">' + bikeLabel + '</span><span class="tk-data-unit">M\u00f8llebukta</span></span></span>');
+                return p.join('');
+            });
+        }
+
+        // Interleave: [2 news] [1 data] [2 news] [1 data] ...
         var parts = [];
         var newsIdx = 0;
-        var chunk = 2;
-        var dataSlot = 0; // 0 = marked, 1 = strøm, 2 = trafikk, 3 = sykkel
-
+        var dataIdx = 0;
         while (newsIdx < headlines.length) {
-            var slice = headlines.slice(newsIdx, newsIdx + chunk);
+            // Add up to 2 news headlines
+            var slice = headlines.slice(newsIdx, newsIdx + 2);
             slice.forEach(function(h) {
                 parts.push('<span>' + escapeHtml(h) + '</span>');
                 parts.push('<span class="sep">\u2022</span>');
             });
-            newsIdx += chunk;
+            newsIdx += 2;
 
-            if (dataSlot === 0 && tkFinancial.length) {
-                tkFinancial.forEach(function(f) {
-                    var chg = f.change ? fmtChange(f.change) : '';
-                    parts.push('<span class="fin-item"><span class="fin-val">' + escapeHtml(f.value) + '</span><span class="fin-meta"><span class="fin-cur">' + escapeHtml(f.label) + '</span>' + chg + '</span></span>');
-                });
+            // Add 1 data block (cycling through available blocks)
+            if (dataBlocks.length) {
+                parts.push(dataBlocks[dataIdx % dataBlocks.length]());
                 parts.push('<span class="sep">\u2022</span>');
-            } else if (dataSlot === 1 && tkElectricity.length) {
-                if (tkSparkData.length >= 2) {
-                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(tkSparkData) + '</span>');
-                }
-                tkElectricity.forEach(function(e) {
-                    parts.push('<span class="tk-data-item tk-elec"><span class="tk-data-val">' + escapeHtml(e.value) + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(e.label) + '</span><span class="tk-data-unit">kr/kWh</span></span></span>');
-                });
-                parts.push('<span class="sep">\u2022</span>');
-            } else if (dataSlot === 2 && trafficState.currentVol) {
-                if (trafficHours.length >= 2) {
-                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(trafficHours.map(function(h) { return h.total; }), '#f97316') + '</span>');
-                }
-                parts.push('<span class="tk-data-item tk-traffic"><span class="tk-data-val">' + trafficState.currentVol + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(trafficState.level) + '</span><span class="tk-data-unit">kjt/t</span></span></span>');
-                parts.push('<span class="sep">\u2022</span>');
-            } else if (dataSlot === 3 && bikeCountState.todayTotal) {
-                if (bikeCountHours.length >= 2) {
-                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(bikeCountHours.map(function(h) { return h.count; }), '#10b981') + '</span>');
-                }
-                parts.push('<span class="tk-data-item tk-bike"><span class="tk-data-val">' + bikeCountState.todayTotal + '</span><span class="tk-data-meta"><span class="tk-data-label">syklister</span><span class="tk-data-unit">M\u00f8llebukta</span></span></span>');
-                parts.push('<span class="sep">\u2022</span>');
+                dataIdx++;
             }
-            dataSlot = (dataSlot + 1) % 4;
         }
 
         var html = parts.join('');
@@ -1099,14 +1183,9 @@
     }
 
     async function loadFinancialData() {
-        setSource('marked', 'loading');
         try {
-            // Fetch exchange rates from Norges Bank
             var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=2';
-            var url = CONFIG.corsProxy + encodeURIComponent(nbUrl);
-            var resp = await fetch(url, { cache: 'no-store' });
-            if (!resp.ok) throw new Error('Norges Bank API failed');
-            var data = await resp.json();
+            var data = await sourceFetch('marked', nbUrl);
 
             var ds = data.data.dataSets[0];
             var dims = data.data.structure.dimensions.series;
@@ -1253,8 +1332,13 @@
             svg = buildSparkCardSvg(hourlyPoints(trafficHours, 'total'), hourlyPoints(trafficLastWeek, 'total'), 400, 200, '#f97316', { gradientId: 'traffic-fill' });
             emoji = '\uD83D\uDE97'; value = trafficState.currentVol || ''; unit = 'kjt/t'; theme = 'sc-traffic';
         } else if (type === 'sykkel') {
-            svg = buildSparkCardSvg(hourlyPoints(bikeCountHours, 'count'), hourlyPoints(bikeCountLastWeek, 'count'), 400, 200, '#10b981', { forceMinZero: true, gradientId: 'bike-fill' });
-            emoji = '\uD83D\uDEB2'; value = bikeCountState.todayTotal || ''; unit = 'i dag'; theme = 'sc-bike';
+            var bikePrimary = bikeCountHours.length ? bikeCountHours : bikeCountLastWeek;
+            var bikeRef = bikeCountHours.length ? bikeCountLastWeek : null;
+            svg = buildSparkCardSvg(hourlyPoints(bikePrimary, 'count'), bikeRef ? hourlyPoints(bikeRef, 'count') : null, 400, 200, '#10b981', { forceMinZero: true, gradientId: 'bike-fill' });
+            emoji = '\uD83D\uDEB2';
+            value = bikeCountState.todayTotal || bikeCountState.lwTotal || '';
+            unit = bikeCountState.todayTotal ? 'i dag' : 'forrige uke';
+            theme = 'sc-bike';
         } else {
             svg = buildSparkCardSvg(seqPoints(tkSparkData), null, 400, 200, '#38bdf8', { topRatio: 0.3, gradientId: 'spark-fill' });
             emoji = '\u26A1'; value = tkElectricity.length ? tkElectricity[0].value : ''; unit = 'kr/kWh'; theme = 'sc-elec';
@@ -1263,10 +1347,11 @@
     }
 
     async function fetchDayPrices(date) {
-        var url = 'https://www.hvakosterstrommen.no/api/v1/prices/' + formatDateParam(date) + '_' + CONFIG.stromprisRegion + '.json';
-        var resp = await fetch(url, { cache: 'no-store' });
-        if (!resp.ok) return null;
-        return resp.json();
+        var dateStr = formatDateParam(date);
+        var url = 'https://www.hvakosterstrommen.no/api/v1/prices/' + dateStr + '_' + CONFIG.stromprisRegion + '.json';
+        try {
+            return await sourceFetch('strompris', url, { skipStatus: true, proxy: 'none', cacheKey: 'dev:strom:' + dateStr });
+        } catch (e) { return null; }
     }
 
     function avgPrice(hours) {
@@ -1441,7 +1526,6 @@
     }
 
     async function loadTrafficData() {
-        setSource('trafikk', 'loading');
         try {
             var now = new Date();
             var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1453,14 +1537,11 @@
 
             var query = '{ today: trafficData(trafficRegistrationPointId: "' + CONFIG.trafficPointId + '") { volume { byHour(from: "' + todayStr + '", to: "' + nowStr + '") { edges { node { from total { volumeNumbers { volume } } byDirection { heading total { volumeNumbers { volume } } } } } } } } lastWeek: trafficData(trafficRegistrationPointId: "' + CONFIG.trafficPointId + '") { volume { byHour(from: "' + lwStart + '", to: "' + lwEnd + '") { edges { node { from total { volumeNumbers { volume } } byDirection { heading total { volumeNumbers { volume } } } } } } } } }';
 
-            var resp = await fetch(CONFIG.trafficGraphQL, {
+            var data = await sourceFetch('trafikk', CONFIG.trafficGraphQL, {
                 method: 'POST',
-                cache: 'no-store',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: query }),
             });
-            if (!resp.ok) throw new Error('Vegvesen API failed');
-            var data = await resp.json();
 
             var todayEdges = data.data.today.volume.byHour.edges;
             var lwEdges = data.data.lastWeek.volume.byHour.edges;
@@ -1501,43 +1582,48 @@
     /* ═══ BIKE COUNTER (Møllebukta) ═══ */
     var bikeCountHours = [];
     var bikeCountLastWeek = [];
-    var bikeCountState = { todayTotal: 0, currentHour: 0, trend: '', label: '', descHtml: '', avgSpeed: 0, temp: 0 };
+    var bikeCountState = { todayTotal: 0, lwTotal: 0, currentHour: 0, trend: '', label: '', descHtml: '', avgSpeed: 0, temp: 0 };
     var _pendingBikeJsonp = null;
 
     function computeBikeCountState() {
-        if (!bikeCountHours.length) return;
+        if (!bikeCountHours.length && !bikeCountLastWeek.length) return;
         var total = 0;
         bikeCountHours.forEach(function(h) { total += h.count; });
-        var cur = bikeCountHours[bikeCountHours.length - 1];
+        var cur = bikeCountHours.length ? bikeCountHours[bikeCountHours.length - 1] : null;
         var prev = bikeCountHours.length > 1 ? bikeCountHours[bikeCountHours.length - 2] : null;
 
         // Trend
         var trend = '';
-        if (prev && prev.count > 0) {
+        if (cur && prev && prev.count > 0) {
             var pct = ((cur.count - prev.count) / prev.count) * 100;
             if (pct > 20) trend = 'Flere syklister';
             else if (pct < -20) trend = 'F\u00e6rre syklister';
             else trend = 'Stabilt';
         }
 
-        // vs last week
-        var vsWeek = '';
+        // Last week totals
         var lwTotal = 0;
         if (bikeCountLastWeek.length) {
             bikeCountLastWeek.forEach(function(h) { lwTotal += h.count; });
-            if (lwTotal > 0) {
-                var diff = Math.round(((total - lwTotal) / lwTotal) * 100);
-                vsWeek = (diff >= 0 ? '+' : '') + diff + '% vs forrige ' + dayN[new Date().getDay()].toLowerCase();
-            }
+        }
+        var dayName = dayN[new Date().getDay()].toLowerCase();
+
+        // vs last week
+        var vsWeek = '';
+        if (lwTotal > 0 && total > 0) {
+            var diff = Math.round(((total - lwTotal) / lwTotal) * 100);
+            vsWeek = (diff >= 0 ? '+' : '') + diff + '% vs forrige ' + dayName;
         }
 
         // Average speed and temp from latest hour
-        var avgSpeed = cur.speed || 0;
-        var temp = cur.temp;
+        var avgSpeed = cur ? (cur.speed || 0) : 0;
+        var temp = cur ? cur.temp : null;
 
         // Dynamic title
         var title;
-        if (total === 0) {
+        if (total === 0 && lwTotal > 0) {
+            title = 'Forrige ' + dayName + ': ' + lwTotal + ' syklister forbi M\u00f8llebukta';
+        } else if (total === 0) {
             title = 'Ingen syklister forbi M\u00f8llebukta enn\u00e5';
         } else if (total < 50) {
             title = total + ' syklister forbi M\u00f8llebukta i dag';
@@ -1549,15 +1635,25 @@
 
         // Description
         var descLines = [];
-        descLines.push('\uD83D\uDEB4 ' + total + ' syklister totalt i dag');
-        descLines.push('\u23F1\uFE0F Siste time: ' + cur.count);
-        if (avgSpeed > 0) descLines.push('\uD83D\uDCA8 Snittfart: ' + avgSpeed + ' km/t');
-        if (temp !== null && temp !== undefined) descLines.push('\uD83C\uDF21\uFE0F Veitemp: ' + temp + '\u00b0C');
-        if (vsWeek) descLines.push('\uD83D\uDCC5 ' + vsWeek);
+        if (total > 0) {
+            descLines.push('\uD83D\uDEB4 ' + total + ' syklister totalt i dag');
+            descLines.push('\u23F1\uFE0F Siste time: ' + cur.count);
+            if (avgSpeed > 0) descLines.push('\uD83D\uDCA8 Snittfart: ' + avgSpeed + ' km/t');
+            if (temp !== null && temp !== undefined) descLines.push('\uD83C\uDF21\uFE0F Veitemp: ' + temp + '\u00b0C');
+            if (vsWeek) descLines.push('\uD83D\uDCC5 ' + vsWeek);
+        } else if (lwTotal > 0) {
+            descLines.push('\uD83D\uDEB4 ' + lwTotal + ' syklister forrige ' + dayName);
+            var lwAvgPerHour = Math.round(lwTotal / bikeCountLastWeek.length);
+            descLines.push('\u23F1\uFE0F Snitt: ' + lwAvgPerHour + ' per time');
+            var lwLast = bikeCountLastWeek[bikeCountLastWeek.length - 1];
+            if (lwLast && lwLast.temp !== null && lwLast.temp !== undefined) descLines.push('\uD83C\uDF21\uFE0F Veitemp da: ' + lwLast.temp + '\u00b0C');
+            descLines.push('\uD83D\uDCC5 Ingen passeringer i dag enn\u00e5');
+        }
 
         bikeCountState = {
             todayTotal: total,
-            currentHour: cur.count,
+            lwTotal: lwTotal,
+            currentHour: cur ? cur.count : 0,
             trend: trend,
             label: title,
             descHtml: descLines.join('<br>'),
@@ -1601,42 +1697,51 @@
             var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
             var lastWeek = fmtDateLocal(lastWeekDay);
 
-            // Cancel any pending JSONP request
-            if (_pendingBikeJsonp) {
-                clearTimeout(_pendingBikeJsonp.timeout);
-                delete window[_pendingBikeJsonp.cb];
-                if (_pendingBikeJsonp.script.parentNode) _pendingBikeJsonp.script.remove();
-                _pendingBikeJsonp = null;
+            // Check dev cache first
+            var jsonpUrl = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource;
+            var cached = getDevCache('sykkel', jsonpUrl);
+            var data;
+            if (cached !== null) {
+                console.log('[' + SOURCES.sykkel.label + '] cache → hit');
+                data = cached;
+            } else {
+                // Cancel any pending JSONP request
+                if (_pendingBikeJsonp) {
+                    clearTimeout(_pendingBikeJsonp.timeout);
+                    delete window[_pendingBikeJsonp.cb];
+                    if (_pendingBikeJsonp.script.parentNode) _pendingBikeJsonp.script.remove();
+                    _pendingBikeJsonp = null;
+                }
+                // JSONP fetch — bypasses CORS via <script> tag
+                data = await new Promise(function(resolve, reject) {
+                    var cbName = '_bikeCountCb' + Date.now();
+                    var script = document.createElement('script');
+                    var timeout = setTimeout(function() {
+                        _pendingBikeJsonp = null;
+                        delete window[cbName];
+                        script.remove();
+                        reject(new Error('JSONP timeout'));
+                    }, 15000);
+                    _pendingBikeJsonp = { cb: cbName, script: script, timeout: timeout };
+                    window[cbName] = function(d) {
+                        _pendingBikeJsonp = null;
+                        clearTimeout(timeout);
+                        delete window[cbName];
+                        script.remove();
+                        resolve(d);
+                    };
+                    script.src = jsonpUrl + '&limit=500&sort=_id+desc&callback=' + cbName;
+                    script.onerror = function() {
+                        _pendingBikeJsonp = null;
+                        clearTimeout(timeout);
+                        delete window[cbName];
+                        script.remove();
+                        reject(new Error('JSONP script error'));
+                    };
+                    document.head.appendChild(script);
+                });
+                setDevCache('sykkel', jsonpUrl, data);
             }
-            // JSONP fetch — bypasses CORS via <script> tag
-            var data = await new Promise(function(resolve, reject) {
-                var cbName = '_bikeCountCb' + Date.now();
-                var script = document.createElement('script');
-                var timeout = setTimeout(function() {
-                    _pendingBikeJsonp = null;
-                    delete window[cbName];
-                    script.remove();
-                    reject(new Error('JSONP timeout'));
-                }, 15000);
-                _pendingBikeJsonp = { cb: cbName, script: script, timeout: timeout };
-                window[cbName] = function(d) {
-                    _pendingBikeJsonp = null;
-                    clearTimeout(timeout);
-                    delete window[cbName];
-                    script.remove();
-                    resolve(d);
-                };
-                script.src = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource +
-                    '&limit=500&sort=_id+desc&callback=' + cbName;
-                script.onerror = function() {
-                    _pendingBikeJsonp = null;
-                    clearTimeout(timeout);
-                    delete window[cbName];
-                    script.remove();
-                    reject(new Error('JSONP script error'));
-                };
-                document.head.appendChild(script);
-            });
 
             var allRecords = data.result ? data.result.records : [];
 
@@ -1651,7 +1756,7 @@
             computeBikeCountState();
 
             // Inject synthetic article (never bumped to top)
-            if (bikeCountHours.length) {
+            if (bikeCountState.label) {
                 rawFeeds.sykkel = [{
                     title: bikeCountState.label,
                     descHtml: bikeCountState.descHtml,
@@ -1705,12 +1810,9 @@
     }
 
     async function loadWeather() {
-        setSource('vaer', 'loading');
         try {
             var url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=' + CONFIG.weatherLat + '&lon=' + CONFIG.weatherLon;
-            var resp = await fetch(url, { cache: 'no-store', headers: { 'User-Agent': 'PelifixInfoScreen/1.0' } });
-            if (!resp.ok) throw new Error('Weather failed');
-            var data = await resp.json();
+            var data = await sourceFetch('vaer', url, { headers: { 'User-Agent': 'PelifixInfoScreen/1.0' } });
             var ts = data.properties.timeseries[0];
             var inst = ts.data.instant.details;
             var temp = Math.round(inst.air_temperature);
