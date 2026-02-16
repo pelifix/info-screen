@@ -1566,9 +1566,10 @@
                     categories: [trafficState.level],
                 }];
                 mergeFeedsAndRender();
+            } else {
+                scheduleTickerRebuild();
             }
 
-            buildTickerContent();
             setSource('trafikk', 'ok');
         } catch (e) {
             console.log('[' + SOURCES.trafikk.label + '] vegvesen.no \u2192 ERROR ' + e.message);
@@ -1766,9 +1767,10 @@
                     categories: [],
                 }];
                 mergeFeedsAndRender();
+            } else {
+                scheduleTickerRebuild();
             }
 
-            buildTickerContent();
             setSource('sykkel', 'ok');
         } catch (e) {
             console.log('[' + SOURCES.sykkel.label + '] JSONP opencom.no \u2192 ERROR ' + e.message);
