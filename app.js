@@ -230,14 +230,11 @@
         var colorClass = meta ? meta.color : '';
         var badgeText = meta ? meta.label : 'Siste nytt';
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
-        var sparkType = isSpark ? item.image.slice(6) : '';
-        var imgContent = sparkType === 'trafikk'
-            ? buildTrafficCardHtml('large')
-            : isSpark
-                ? buildPriceCardHtml('large')
-                : item.image
-                    ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-                    : '<div class="hero-no-img">\u{1F4F0}</div>';
+        var imgContent = isSpark
+            ? getSparkCard(item.image.slice(6), 'large')
+            : item.image
+                ? '<img src="' + escapeHtml(item.image) + '" alt="">'
+                : '<div class="hero-no-img">\u{1F4F0}</div>';
 
         var html =
             '<div class="hero-img-wrap">' +
@@ -325,16 +322,11 @@
         div.setAttribute('data-source', item.source);
         div.setAttribute('data-title', item.title);
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
-        var sparkType = isSpark ? item.image.slice(6) : '';
-        var imgHtml = sparkType === 'sykkel'
-            ? '<div class="article-img">' + buildBikeCountCardHtml() + '</div>'
-            : sparkType === 'trafikk'
-                ? '<div class="article-img">' + buildTrafficCardHtml('small') + '</div>'
-                : isSpark
-                    ? '<div class="article-img">' + buildPriceCardHtml('small') + '</div>'
-                    : item.image
-                    ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
-                    : '<div class="article-img no-image">\u{1F4F0}</div>';
+        var imgHtml = isSpark
+            ? '<div class="article-img">' + getSparkCard(item.image.slice(6)) + '</div>'
+            : item.image
+                ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
+                : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
@@ -1069,23 +1061,23 @@
                 parts.push('<span class="sep">\u2022</span>');
             } else if (dataSlot === 1 && tkElectricity.length) {
                 if (tkSparkData.length >= 2) {
-                    parts.push('<span class="elec-spark">' + buildSparklineSvg(tkSparkData) + '</span>');
+                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(tkSparkData) + '</span>');
                 }
                 tkElectricity.forEach(function(e) {
-                    parts.push('<span class="elec-item"><span class="elec-val">' + escapeHtml(e.value) + '</span><span class="elec-meta"><span class="elec-label">' + escapeHtml(e.label) + '</span><span class="elec-unit">kr/kWh</span></span></span>');
+                    parts.push('<span class="tk-data-item tk-elec"><span class="tk-data-val">' + escapeHtml(e.value) + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(e.label) + '</span><span class="tk-data-unit">kr/kWh</span></span></span>');
                 });
                 parts.push('<span class="sep">\u2022</span>');
             } else if (dataSlot === 2 && trafficState.currentVol) {
                 if (trafficHours.length >= 2) {
-                    parts.push('<span class="traffic-spark">' + buildSparklineSvg(trafficHours.map(function(h) { return h.total; }), '#f97316') + '</span>');
+                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(trafficHours.map(function(h) { return h.total; }), '#f97316') + '</span>');
                 }
-                parts.push('<span class="traffic-item"><span class="traffic-val">' + trafficState.currentVol + '</span><span class="traffic-meta"><span class="traffic-label">' + escapeHtml(trafficState.level) + '</span><span class="traffic-unit">kjt/t</span></span></span>');
+                parts.push('<span class="tk-data-item tk-traffic"><span class="tk-data-val">' + trafficState.currentVol + '</span><span class="tk-data-meta"><span class="tk-data-label">' + escapeHtml(trafficState.level) + '</span><span class="tk-data-unit">kjt/t</span></span></span>');
                 parts.push('<span class="sep">\u2022</span>');
             } else if (dataSlot === 3 && bikeCountState.todayTotal) {
                 if (bikeCountHours.length >= 2) {
-                    parts.push('<span class="bike-count-spark">' + buildSparklineSvg(bikeCountHours.map(function(h) { return h.count; }), '#10b981') + '</span>');
+                    parts.push('<span class="tk-data-spark">' + buildSparklineSvg(bikeCountHours.map(function(h) { return h.count; }), '#10b981') + '</span>');
                 }
-                parts.push('<span class="bike-count-item"><span class="bike-count-val">' + bikeCountState.todayTotal + '</span><span class="bike-count-meta"><span class="bike-count-label">syklister</span><span class="bike-count-unit">M\u00f8llebukta</span></span></span>');
+                parts.push('<span class="tk-data-item tk-bike"><span class="tk-data-val">' + bikeCountState.todayTotal + '</span><span class="tk-data-meta"><span class="tk-data-label">syklister</span><span class="tk-data-unit">M\u00f8llebukta</span></span></span>');
                 parts.push('<span class="sep">\u2022</span>');
             }
             dataSlot = (dataSlot + 1) % 4;
@@ -1190,46 +1182,84 @@
             '</svg>';
     }
 
-    function buildPriceCardSvg(data, w, h) {
-        if (!data || data.length < 2) return '';
+    /* ═══ SHARED SPARK CARD BUILDERS ═══ */
+    function seqPoints(arr) {
+        return arr.map(function(v, i) { return { x: i / (arr.length - 1), y: v }; });
+    }
+    function hourlyPoints(arr, key) {
+        return arr.map(function(d) { return { x: parseInt(d.hour) / 23, y: d[key] }; });
+    }
+
+    function buildSparkCardSvg(points, refPoints, w, h, color, opts) {
+        if (!points || points.length < 2) return '';
         var pad = 4;
-        var min = Math.min.apply(null, data);
-        var max = Math.max.apply(null, data);
+        var topRatio = (opts && opts.topRatio) || 0.15;
+        var forceMinZero = opts && opts.forceMinZero;
+        var gradientId = (opts && opts.gradientId) || 'spark-g';
+        var allY = points.map(function(p) { return p.y; });
+        if (refPoints && refPoints.length) {
+            allY = allY.concat(refPoints.map(function(p) { return p.y; }));
+        }
+        var min = forceMinZero ? 0 : Math.min.apply(null, allY);
+        var max = Math.max.apply(null, allY);
         var range = max - min || 1;
-        // Build polyline points — line sits in lower 60% of SVG
-        var top = h * 0.3, bot = h - pad;
-        var pts = data.map(function(v, i) {
-            var x = pad + (i / (data.length - 1)) * (w - pad * 2);
-            var y = top + (1 - (v - min) / range) * (bot - top);
-            return x.toFixed(1) + ',' + y.toFixed(1);
-        });
-        var polyline = pts.join(' ');
-        // Closed area fill path
-        var areaPath = 'M' + pts[0] + ' ' + pts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
-            ' L' + (w - pad) + ',' + h + ' L' + pad + ',' + h + ' Z';
+        var top = h * topRatio, bot = h - pad;
+        function toSvg(arr) {
+            return arr.map(function(p) {
+                var x = pad + p.x * (w - pad * 2);
+                var y = top + (1 - (p.y - min) / range) * (bot - top);
+                return x.toFixed(1) + ',' + y.toFixed(1);
+            });
+        }
+        var todayPts = toSvg(points);
+        var polyline = todayPts.join(' ');
+        var lastX = (pad + points[points.length - 1].x * (w - pad * 2)).toFixed(1);
+        var firstX = (pad + points[0].x * (w - pad * 2)).toFixed(1);
+        var areaPath = 'M' + todayPts[0] + ' ' + todayPts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
+            ' L' + lastX + ',' + h + ' L' + firstX + ',' + h + ' Z';
+        var lwLine = '';
+        if (refPoints && refPoints.length >= 2) {
+            var lwPts = toSvg(refPoints);
+            lwLine = '<polyline points="' + lwPts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,4" stroke-linejoin="round" stroke-linecap="round"/>';
+        }
         return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
-            '<defs><linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4"/>' +
-            '<stop offset="100%" stop-color="#38bdf8" stop-opacity="0.05"/>' +
+            '<defs><linearGradient id="' + gradientId + '" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.4"/>' +
+            '<stop offset="100%" stop-color="' + color + '" stop-opacity="0.05"/>' +
             '</linearGradient></defs>' +
-            '<path d="' + areaPath + '" fill="url(#spark-fill)"/>' +
-            '<polyline points="' + polyline + '" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+            lwLine +
+            '<path d="' + areaPath + '" fill="url(#' + gradientId + ')"/>' +
+            '<polyline points="' + polyline + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
             '</svg>';
     }
 
-    function buildPriceCardHtml(size) {
-        var price = tkElectricity.length ? tkElectricity[0].value : '';
-        var svg = buildPriceCardSvg(tkSparkData, 400, 200);
+    function buildSparkCardHtml(opts) {
+        var size = opts.size || 'small';
         var fontSize = size === 'large' ? '5rem' : '2rem';
-        var priceSize = size === 'large' ? '2.4rem' : '1rem';
+        var valSize = size === 'large' ? '2.4rem' : '1rem';
         var unitSize = size === 'large' ? '0.9rem' : '0.55rem';
-        return '<div class="price-card-visual">' +
-            '<div class="price-card-spark">' + svg + '</div>' +
-            '<div class="price-card-overlay">' +
-                '<div class="price-card-emoji" style="font-size:' + fontSize + ';">\u26A1</div>' +
-                (price ? '<div class="price-card-price" style="font-size:' + priceSize + ';">' + escapeHtml(price) + '<span class="price-card-unit" style="font-size:' + unitSize + ';"> kr/kWh</span></div>' : '') +
+        return '<div class="spark-card-visual ' + opts.theme + '">' +
+            '<div class="spark-card-spark">' + (opts.svg || '') + '</div>' +
+            '<div class="spark-card-overlay">' +
+                '<div class="spark-card-emoji" style="font-size:' + fontSize + ';">' + opts.emoji + '</div>' +
+                (opts.value ? '<div class="spark-card-value" style="font-size:' + valSize + ';">' + escapeHtml(String(opts.value)) + '<span class="spark-card-unit" style="font-size:' + unitSize + ';"> ' + escapeHtml(opts.unit) + '</span></div>' : '') +
             '</div>' +
         '</div>';
+    }
+
+    function getSparkCard(type, size) {
+        var svg, emoji, value, unit, theme;
+        if (type === 'trafikk') {
+            svg = buildSparkCardSvg(hourlyPoints(trafficHours, 'total'), hourlyPoints(trafficLastWeek, 'total'), 400, 200, '#f97316', { gradientId: 'traffic-fill' });
+            emoji = '\uD83D\uDE97'; value = trafficState.currentVol || ''; unit = 'kjt/t'; theme = 'sc-traffic';
+        } else if (type === 'sykkel') {
+            svg = buildSparkCardSvg(hourlyPoints(bikeCountHours, 'count'), hourlyPoints(bikeCountLastWeek, 'count'), 400, 200, '#10b981', { forceMinZero: true, gradientId: 'bike-fill' });
+            emoji = '\uD83D\uDEB2'; value = bikeCountState.todayTotal || ''; unit = 'i dag'; theme = 'sc-bike';
+        } else {
+            svg = buildSparkCardSvg(seqPoints(tkSparkData), null, 400, 200, '#38bdf8', { topRatio: 0.3, gradientId: 'spark-fill' });
+            emoji = '\u26A1'; value = tkElectricity.length ? tkElectricity[0].value : ''; unit = 'kr/kWh'; theme = 'sc-elec';
+        }
+        return buildSparkCardHtml({ svg: svg, emoji: emoji, value: value, unit: unit, size: size || 'small', theme: theme });
     }
 
     async function fetchDayPrices(date) {
@@ -1259,8 +1289,8 @@
                 fetches.push(fetchDayPrices(new Date(today.getTime() - d * 86400000)));
             }
             var results = await Promise.allSettled(fetches);
-            var todayData = results[0].status === 'fulfilled' ? results[0].value : null;
-            var tomorrowData = results[1].status === 'fulfilled' ? results[1].value : null;
+            var todayData = results[0].status === 'fulfilled' && results[0].value ? results[0].value : null;
+            var tomorrowData = results[1].status === 'fulfilled' && results[1].value ? results[1].value : null;
 
             var todayAvg = avgPrice(todayData);
             var tomorrowAvg = avgPrice(tomorrowData);
@@ -1276,7 +1306,7 @@
             // Build sparkline from all hourly prices (last 7 days + today)
             var hourlyPrices = [];
             for (var s = 2; s < results.length; s++) {
-                var dayData = results[s].status === 'fulfilled' ? results[s].value : null;
+                var dayData = results[s].status === 'fulfilled' && results[s].value ? results[s].value : null;
                 if (dayData) {
                     for (var hi = 0; hi < dayData.length; hi++) {
                         hourlyPrices.push(dayData[hi].NOK_per_kWh * 1.25);
@@ -1379,67 +1409,7 @@
         };
     }
 
-    function buildTrafficCardSvg(todayData, lastWeekData, w, h) {
-        if (!todayData || todayData.length < 2) return '';
-        var pad = 4;
-        // Shared scale across both datasets
-        var allVals = todayData.map(function(d) { return d.total; });
-        if (lastWeekData && lastWeekData.length) {
-            allVals = allVals.concat(lastWeekData.map(function(d) { return d.total; }));
-        }
-        var min = Math.min.apply(null, allVals);
-        var max = Math.max.apply(null, allVals);
-        var range = max - min || 1;
-        var top = h * 0.15, bot = h - pad;
 
-        function hourToX(hr) { return pad + (hr / 23) * (w - pad * 2); }
-        function valToY(v) { return top + (1 - (v - min) / range) * (bot - top); }
-        function buildPoints(arr) {
-            return arr.map(function(d) {
-                return hourToX(parseInt(d.hour)).toFixed(1) + ',' + valToY(d.total).toFixed(1);
-            });
-        }
-
-        var todayPts = buildPoints(todayData);
-        var polyline = todayPts.join(' ');
-        var lastHr = parseInt(todayData[todayData.length - 1].hour);
-        var lastX = hourToX(lastHr);
-        var firstX = hourToX(parseInt(todayData[0].hour));
-        var areaPath = 'M' + todayPts[0] + ' ' + todayPts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
-            ' L' + lastX.toFixed(1) + ',' + h + ' L' + firstX.toFixed(1) + ',' + h + ' Z';
-
-        // Last week reference line
-        var lwLine = '';
-        if (lastWeekData && lastWeekData.length >= 2) {
-            var lwPts = buildPoints(lastWeekData);
-            lwLine = '<polyline points="' + lwPts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,4" stroke-linejoin="round" stroke-linecap="round"/>';
-        }
-
-        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
-            '<defs><linearGradient id="traffic-fill" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0%" stop-color="#f97316" stop-opacity="0.4"/>' +
-            '<stop offset="100%" stop-color="#f97316" stop-opacity="0.05"/>' +
-            '</linearGradient></defs>' +
-            lwLine +
-            '<path d="' + areaPath + '" fill="url(#traffic-fill)"/>' +
-            '<polyline points="' + polyline + '" fill="none" stroke="#f97316" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-            '</svg>';
-    }
-
-    function buildTrafficCardHtml(size) {
-        var vol = trafficState.currentVol || '';
-        var svg = buildTrafficCardSvg(trafficHours, trafficLastWeek, 400, 200);
-        var fontSize = size === 'large' ? '5rem' : '2rem';
-        var volSize = size === 'large' ? '2.4rem' : '1rem';
-        var unitSize = size === 'large' ? '0.9rem' : '0.55rem';
-        return '<div class="traffic-card-visual">' +
-            '<div class="traffic-card-spark">' + svg + '</div>' +
-            '<div class="traffic-card-overlay">' +
-                '<div class="traffic-card-emoji" style="font-size:' + fontSize + ';">\uD83D\uDE97</div>' +
-                (vol ? '<div class="traffic-card-vol" style="font-size:' + volSize + ';">' + vol + '<span class="traffic-card-unit" style="font-size:' + unitSize + ';"> kjt/t</span></div>' : '') +
-            '</div>' +
-        '</div>';
-    }
 
     function parseTrafficHours(edges) {
         return edges.map(function(e) {
@@ -1532,6 +1502,7 @@
     var bikeCountHours = [];
     var bikeCountLastWeek = [];
     var bikeCountState = { todayTotal: 0, currentHour: 0, trend: '', label: '', descHtml: '', avgSpeed: 0, temp: 0 };
+    var _pendingBikeJsonp = null;
 
     function computeBikeCountState() {
         if (!bikeCountHours.length) return;
@@ -1595,62 +1566,7 @@
         };
     }
 
-    function buildBikeCountCardSvg(todayData, lastWeekData, w, h) {
-        if (!todayData || todayData.length < 2) return '';
-        var pad = 4;
-        var allVals = todayData.map(function(d) { return d.count; });
-        if (lastWeekData && lastWeekData.length) {
-            allVals = allVals.concat(lastWeekData.map(function(d) { return d.count; }));
-        }
-        var min = 0;
-        var max = Math.max.apply(null, allVals);
-        var range = max - min || 1;
-        var top = h * 0.15, bot = h - pad;
 
-        function hourToX(hr) { return pad + (hr / 23) * (w - pad * 2); }
-        function valToY(v) { return top + (1 - (v - min) / range) * (bot - top); }
-        function buildPoints(arr) {
-            return arr.map(function(d) {
-                return hourToX(parseInt(d.hour)).toFixed(1) + ',' + valToY(d.count).toFixed(1);
-            });
-        }
-
-        var todayPts = buildPoints(todayData);
-        var polyline = todayPts.join(' ');
-        var lastHr = parseInt(todayData[todayData.length - 1].hour);
-        var lastX = hourToX(lastHr);
-        var firstX = hourToX(parseInt(todayData[0].hour));
-        var areaPath = 'M' + todayPts[0] + ' ' + todayPts.slice(1).map(function(p) { return 'L' + p; }).join(' ') +
-            ' L' + lastX.toFixed(1) + ',' + h + ' L' + firstX.toFixed(1) + ',' + h + ' Z';
-
-        var lwLine = '';
-        if (lastWeekData && lastWeekData.length >= 2) {
-            var lwPts = buildPoints(lastWeekData);
-            lwLine = '<polyline points="' + lwPts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4,4" stroke-linejoin="round" stroke-linecap="round"/>';
-        }
-
-        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">' +
-            '<defs><linearGradient id="bike-count-fill" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0%" stop-color="#10b981" stop-opacity="0.4"/>' +
-            '<stop offset="100%" stop-color="#10b981" stop-opacity="0.05"/>' +
-            '</linearGradient></defs>' +
-            lwLine +
-            '<path d="' + areaPath + '" fill="url(#bike-count-fill)"/>' +
-            '<polyline points="' + polyline + '" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-            '</svg>';
-    }
-
-    function buildBikeCountCardHtml() {
-        var total = bikeCountState.todayTotal || '';
-        var svg = buildBikeCountCardSvg(bikeCountHours, bikeCountLastWeek, 400, 200);
-        return '<div class="bike-count-card-visual">' +
-            '<div class="bike-count-card-spark">' + svg + '</div>' +
-            '<div class="bike-count-card-overlay">' +
-                '<div class="bike-count-card-emoji" style="font-size:2rem;">\uD83D\uDEB2</div>' +
-                (total ? '<div class="bike-count-card-vol" style="font-size:1rem;">' + total + '<span class="bike-count-card-unit" style="font-size:0.55rem;"> i dag</span></div>' : '') +
-            '</div>' +
-        '</div>';
-    }
 
     function parseBikeCountRecords(records) {
         // Group by hour, sum both lanes
@@ -1685,24 +1601,35 @@
             var lastWeekDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
             var lastWeek = fmtDateLocal(lastWeekDay);
 
+            // Cancel any pending JSONP request
+            if (_pendingBikeJsonp) {
+                clearTimeout(_pendingBikeJsonp.timeout);
+                delete window[_pendingBikeJsonp.cb];
+                if (_pendingBikeJsonp.script.parentNode) _pendingBikeJsonp.script.remove();
+                _pendingBikeJsonp = null;
+            }
             // JSONP fetch — bypasses CORS via <script> tag
             var data = await new Promise(function(resolve, reject) {
                 var cbName = '_bikeCountCb' + Date.now();
+                var script = document.createElement('script');
                 var timeout = setTimeout(function() {
+                    _pendingBikeJsonp = null;
                     delete window[cbName];
                     script.remove();
                     reject(new Error('JSONP timeout'));
                 }, 15000);
+                _pendingBikeJsonp = { cb: cbName, script: script, timeout: timeout };
                 window[cbName] = function(d) {
+                    _pendingBikeJsonp = null;
                     clearTimeout(timeout);
                     delete window[cbName];
                     script.remove();
                     resolve(d);
                 };
-                var script = document.createElement('script');
                 script.src = CONFIG.bikeCountApi + '?resource_id=' + CONFIG.bikeCountResource +
                     '&limit=500&sort=_id+desc&callback=' + cbName;
                 script.onerror = function() {
+                    _pendingBikeJsonp = null;
                     clearTimeout(timeout);
                     delete window[cbName];
                     script.remove();
