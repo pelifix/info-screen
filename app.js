@@ -94,7 +94,21 @@
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
         trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
         sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
-        politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi' },
+        politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi',
+            cardClass: 'police-tape',
+            noImg: function(item) { return policeEmoji(item._category); },
+            noImgClass: 'police-img',
+            heroNoImgClass: 'police-hero-img',
+            topBadge: function(item) {
+                if (!item._isActive) return null;
+                return { text: 'P\u00C5G\u00C5R', cls: 'hero-top-badge police-pagar-hero' };
+            },
+            statusBadge: function(item) {
+                return item._isActive
+                    ? '<div class="police-status-badge police-status-pagar">P\u00C5G\u00C5R</div>'
+                    : '<div class="police-status-badge police-status-avsluttet">AVSLUTTET</div>';
+            },
+        },
     };
 
     var lastRefreshTime = null;
@@ -244,6 +258,19 @@
         return d.innerHTML;
     }
 
+    var POLICE_CAT_EMOJI = {
+        'Brann': '\uD83D\uDD25',
+        'Trafikk': '\uD83D\uDE97',
+        'Voldshendelse': '\uD83D\uDEA8',
+        'Tyveri': '\uD83D\uDD12',
+        'Ro og orden': '\uD83D\uDE94',
+        'Andre hendelser': '\uD83D\uDCCB',
+    };
+
+    function policeEmoji(category) {
+        return POLICE_CAT_EMOJI[category] || '\uD83D\uDEA8';
+    }
+
     /* ═══ CLOCK ═══ */
     function updateClock() {
         var now = new Date();
@@ -312,18 +339,18 @@
         var colorClass = meta ? meta.color : '';
         var badgeText = meta ? meta.label : 'Siste nytt';
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
+        var noImgCls = meta && meta.heroNoImgClass ? ' ' + meta.heroNoImgClass : '';
+        var noImgContent = meta && meta.noImg ? meta.noImg(item) : '\u{1F4F0}';
         var imgContent = isSpark
             ? getSparkCard(item.image.slice(6), 'large')
             : item.image
                 ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-                : item.source === 'politi'
-                    ? '<div class="hero-no-img police-hero-img">' + policeEmoji(item._category) + '</div>'
-                    : '<div class="hero-no-img">\u{1F4F0}</div>';
-        var isPoliceActive = item.source === 'politi' && item._isActive;
-        var topBadgeText = isPoliceActive ? 'P\u00C5G\u00C5R' : 'TOPP';
-        var topBadgeClass = isPoliceActive ? 'hero-top-badge police-pagar-hero' : 'hero-top-badge';
+                : '<div class="hero-no-img' + noImgCls + '">' + noImgContent + '</div>';
+        var customBadge = meta && meta.topBadge ? meta.topBadge(item) : null;
+        var topBadgeText = customBadge ? customBadge.text : 'TOPP';
+        var topBadgeClass = customBadge ? customBadge.cls : 'hero-top-badge';
 
-        var heroTapeClass = item.source === 'politi' ? ' police-tape' : '';
+        var heroTapeClass = meta && meta.cardClass ? ' ' + meta.cardClass : '';
         var html =
             '<div class="hero-img-wrap">' +
                 '<div class="hero-badges"><div class="hero-badge ' + colorClass + '">' + badgeText + '</div>' +
@@ -406,32 +433,28 @@
         var meta = FEED_META[item.source];
         var colorClass = meta ? meta.color : '';
         var div = document.createElement('div');
-        div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '') + (item.source === 'politi' ? ' police-tape' : '');
+        var extraCardClass = meta && meta.cardClass ? ' ' + meta.cardClass : '';
+        div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '') + extraCardClass;
         div.setAttribute('data-source', item.source);
         div.setAttribute('data-title', item.title);
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
+        var noImgCls = meta && meta.noImgClass ? ' ' + meta.noImgClass : '';
+        var noImgContent = meta && meta.noImg ? meta.noImg(item) : '\u{1F4F0}';
         var imgHtml = isSpark
             ? '<div class="article-img">' + getSparkCard(item.image.slice(6)) + '</div>'
             : item.image
                 ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
-                : item.source === 'politi'
-                    ? '<div class="article-img no-image police-img">' + policeEmoji(item._category) + '</div>'
-                    : '<div class="article-img no-image">\u{1F4F0}</div>';
+                : '<div class="article-img no-image' + noImgCls + '">' + noImgContent + '</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
                 '<div class="article-badges"><div class="article-source-overlay ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' + nyBadge + '</div>' +
             '</div>';
-        var policeStatusBadge = '';
-        if (item.source === 'politi') {
-            policeStatusBadge = item._isActive
-                ? '<div class="police-status-badge police-status-pagar">P\u00C5G\u00C5R</div>'
-                : '<div class="police-status-badge police-status-avsluttet">AVSLUTTET</div>';
-        }
+        var statusBadgeHtml = meta && meta.statusBadge ? meta.statusBadge(item) : '';
         div.innerHTML =
             '<div class="article-body">' +
                 imgWithBadge +
-                policeStatusBadge +
+                statusBadgeHtml +
                 '<div class="article-text">' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
                     (item.descHtml ? '<div class="article-desc">' + item.descHtml + '</div>' : item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
@@ -1802,19 +1825,6 @@
     setInterval(loadBikeCountData, CONFIG.bikeCountRefresh);
 
     /* ═══ POLITILOGGEN ═══ */
-    var POLICE_CAT_EMOJI = {
-        'Brann': '\uD83D\uDD25',
-        'Trafikk': '\uD83D\uDE97',
-        'Voldshendelse': '\uD83D\uDEA8',
-        'Tyveri': '\uD83D\uDD12',
-        'Ro og orden': '\uD83D\uDE94',
-        'Andre hendelser': '\uD83D\uDCCB',
-    };
-
-    function policeEmoji(category) {
-        return POLICE_CAT_EMOJI[category] || '\uD83D\uDEA8';
-    }
-
     async function loadPoliceLog() {
         try {
             var data = await sourceFetch('politi', CONFIG.policeApi);
@@ -1855,7 +1865,7 @@
                     if (!txt) continue;
                     var time = new Date(upd.createdOn).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
                     descParts.push(time + ': ' + txt);
-                    descHtmlParts.push('<span style="color:var(--src-politi)">' + time + '</span> ' + escapeHtml(txt));
+                    descHtmlParts.push('<span class="police-time">' + time + '</span> ' + escapeHtml(txt));
                 }
                 var desc = descParts.join(' | ');
                 var descHtml = descHtmlParts.join('<br>');
@@ -1864,7 +1874,7 @@
                     title: title,
                     desc: desc,
                     descHtml: descHtml,
-                    pubDate: isActive ? new Date().toISOString() : first.createdOn,
+                    pubDate: isActive ? latest.createdOn : first.createdOn,
                     image: latest.imageUrl || first.imageUrl || null,
                     source: 'politi',
                     categories: [first.category || 'Hendelse'],
