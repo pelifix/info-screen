@@ -333,10 +333,9 @@ body.hide-cursor { cursor: none; }
     background: linear-gradient(135deg, #0c1428 0%, #1a2d5a 100%);
     opacity: 1; font-size: 6rem; animation: none;
 }
-.police-pagar,
 .police-pagar-hero {
-    background: rgba(248, 113, 113, 0.25) !important;
-    border-color: #f87171 !important; color: #f87171 !important;
+    background: rgba(248, 113, 113, 0.25);
+    border-color: #f87171; color: #f87171;
     animation: police-pagar-pulse 2s ease-in-out infinite;
 }
 @keyframes police-pagar-pulse {
