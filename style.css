@@ -28,8 +28,8 @@
     --display-spacing: 0.6px;
     --display-weight: 600;
     --font-body: 'DM Sans', system-ui, sans-serif;
-    --radius: 14px;
-    --radius-sm: 10px;
+    --radius: 10px;
+    --radius-inner: 6px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,15 +70,15 @@ body.hide-cursor { cursor: none; }
 .hero-story {
     position: relative; height: 380px; min-height: 380px;
     overflow: hidden;
-    background: var(--bg-card);
-    border-radius: var(--radius-sm);
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius);
     margin: 5px 5px 8px 5px;
 }
 
 .hero-card {
     position: absolute; inset: 0;
     display: grid; grid-template-columns: 460px 1fr;
-    gap: 12px; padding: 10px 16px;
+    gap: 12px; padding: 10px;
     transform: translateX(100%);
     transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -86,7 +86,7 @@ body.hide-cursor { cursor: none; }
 .hero-card.exit { transform: translateX(-100%); }
 
 .hero-img-wrap {
-    position: relative; border-radius: var(--radius);
+    position: relative; border-radius: var(--radius-inner);
     overflow: hidden; background: var(--bg-card);
 }
 .hero-img-wrap img {
@@ -205,7 +205,7 @@ body.hide-cursor { cursor: none; }
 }
 .feed-cols {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0 20px; height: 100%; padding: 0 5px 0 5px;
+    gap: 0 10px; height: 100%; padding: 0 5px 0 5px;
 }
 .feed-col {
     overflow: hidden;
@@ -217,15 +217,15 @@ body.hide-cursor { cursor: none; }
 }
 
 .article {
-    padding: 10px 16px;
-    background: var(--bg-card);
-    border-radius: var(--radius-sm);
+    padding: 10px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius);
     margin-bottom: 8px;
     overflow: hidden;
 }
 .article-body {
     display: grid; grid-template-columns: 180px 1fr;
-    gap: 12px; margin-top: 6px; position: relative;
+    gap: 8px; position: relative;
 }
 
 .article-text {
@@ -290,7 +290,6 @@ body.hide-cursor { cursor: none; }
 
 .article-img-wrap {
     position: relative; width: 180px; align-self: stretch; overflow: hidden;
-    border-radius: var(--radius-sm);
 }
 .article-source-overlay {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.55rem; font-weight: var(--display-weight);
@@ -299,7 +298,7 @@ body.hide-cursor { cursor: none; }
     background: rgba(0, 0, 0, 0.45); color: var(--accent);
 }
 .article-img {
-    width: 100%; height: 100%; border-radius: var(--radius-sm);
+    width: 100%; height: 100%; border-radius: var(--radius-inner);
     overflow: hidden; background: var(--bg-card);
 }
 .article-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -409,7 +408,7 @@ body.hide-cursor { cursor: none; }
 
 .widget-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 8px 12px; position: relative;
+    border-radius: var(--radius); padding: 8px 12px; position: relative;
 }
 .widget-label {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.8rem; font-weight: var(--display-weight);
@@ -495,7 +494,7 @@ body.hide-cursor { cursor: none; }
 
 /* Daily Image */
 .daily-img-widget {
-    position: relative; overflow: hidden; border-radius: var(--radius-sm);
+    position: relative; overflow: hidden; border-radius: var(--radius);
     aspect-ratio: 16 / 9; background: var(--bg-deep);
 }
 .di-slide {
@@ -660,7 +659,7 @@ body.hide-cursor { cursor: none; }
 /* Source Status */
 .source-status {
     background: var(--bg-card);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
     padding: 8px 12px;
     display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between;
     align-content: center;
@@ -695,7 +694,7 @@ body.hide-cursor { cursor: none; }
 .ticker-bar {
     flex: 1; min-width: 0;
     background: var(--bg-card);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
     display: flex; align-items: center; overflow: hidden;
 }
 .ticker-label {
@@ -705,7 +704,7 @@ body.hide-cursor { cursor: none; }
     letter-spacing: 3px; text-transform: uppercase;
     color: var(--bg-deep); background: var(--accent);
     height: 100%; white-space: nowrap; position: relative; z-index: 2;
-    border-radius: var(--radius-sm) 0 0 0;
+    border-radius: var(--radius) 0 0 0;
 }
 .ticker-label::after {
     content: ''; position: absolute;

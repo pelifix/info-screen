@@ -525,14 +525,14 @@
         el.style.maxHeight = '0';
         el.style.opacity = '0';
         el.style.overflow = 'hidden';
-        el.style.padding = '0 16px';
+        el.style.padding = '0 10px';
         col.insertBefore(el, col.firstChild);
         void el.offsetWidth;
         // Expand to full height, then fade in content
         el.style.transition = 'max-height 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease 0.3s, padding 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
         el.style.maxHeight = '400px';
         el.style.opacity = '1';
-        el.style.padding = '14px 16px';
+        el.style.padding = '10px';
         // Clean up inline styles after animation
         setTimeout(function() {
             el.style.transition = '';
