@@ -1129,6 +1129,16 @@
         return all;
     }
 
+    function getTickerX() {
+        var cs = window.getComputedStyle(tickerEl);
+        var matrix = cs.transform;
+        if (matrix && matrix !== 'none') {
+            var parts = matrix.split(',');
+            return Math.abs(parseFloat(parts[4]));
+        }
+        return 0;
+    }
+
     function scheduleTickerRebuild() {
         if (tkRebuildTimer) clearTimeout(tkRebuildTimer);
         tkRebuildTimer = setTimeout(function() {
@@ -1211,12 +1221,15 @@
         }
 
         var html = parts.join('');
+        var currentX = getTickerX();
+        tickerEl.style.animation = 'none';
         tickerEl.innerHTML = html + html;
         var halfWidth = tickerEl.scrollWidth / 2;
         var duration = halfWidth / CONFIG.tickerSpeed;
-        tickerEl.style.animation = 'none';
+        var timeOffset = halfWidth > 0 ? (currentX % halfWidth) / CONFIG.tickerSpeed : 0;
         void tickerEl.offsetWidth;
         tickerEl.style.animation = 'ticker-scroll ' + duration + 's linear infinite';
+        tickerEl.style.animationDelay = '-' + timeOffset + 's';
     }
 
     function fmtChange(pct) {
