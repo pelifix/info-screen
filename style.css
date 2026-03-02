@@ -488,7 +488,7 @@ body.hide-cursor { cursor: none; }
 }
 
 /* Weather */
-.weather-row { display: flex; align-items: center; gap: 12px; }
+.weather-row { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
 .weather-icon { font-size: 2rem; line-height: 1; }
 .weather-temp { font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.7rem; font-weight: var(--display-weight); line-height: 1; }
 .weather-desc { font-size: 0.95rem; color: var(--text-secondary); }
