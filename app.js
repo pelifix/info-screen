@@ -53,6 +53,8 @@
         bikeCountResource: 'c584f88c-c967-4ced-9e47-4126eb7b1e14',
         bikeCountStation: 'Møllebukta',
         bikeCountRefresh: 10 * 60 * 1000,
+        policeApi: 'https://api.politiet.no/politiloggen/v1/messages?districts=S%C3%B8rVest&municipalities=Randaberg,Sandnes,Sola,Stavanger',
+        policeRefresh: 2 * 60 * 1000,
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
@@ -75,6 +77,7 @@
         buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh,       proxy: 'none' },
         konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
         folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
+        politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'codetabs' },
     };
 
     var preRefreshTimers = {};
@@ -91,6 +94,7 @@
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
         trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
         sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
+        politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi' },
     };
 
     var lastRefreshTime = null;
@@ -297,6 +301,7 @@
     Object.keys(CONFIG.feeds).forEach(function(k) { rawFeeds[k] = []; });
     rawFeeds.trafikk = [];
     rawFeeds.sykkel = [];
+    rawFeeds.politi = [];
 
     function renderHero(item) {
         if (!item) return;
@@ -311,12 +316,18 @@
             ? getSparkCard(item.image.slice(6), 'large')
             : item.image
                 ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-                : '<div class="hero-no-img">\u{1F4F0}</div>';
+                : item.source === 'politi'
+                    ? '<div class="hero-no-img police-hero-img">' + policeEmoji(item._category) + '</div>'
+                    : '<div class="hero-no-img">\u{1F4F0}</div>';
+        var isPoliceActive = item.source === 'politi' && item._isActive;
+        var topBadgeText = isPoliceActive ? 'P\u00C5G\u00C5R' : 'TOPP';
+        var topBadgeClass = isPoliceActive ? 'hero-top-badge police-pagar-hero' : 'hero-top-badge';
 
+        var heroTapeClass = item.source === 'politi' ? ' police-tape' : '';
         var html =
             '<div class="hero-img-wrap">' +
                 '<div class="hero-badges"><div class="hero-badge ' + colorClass + '">' + badgeText + '</div>' +
-                '<div class="hero-top-badge">TOPP</div></div>' +
+                '<div class="' + topBadgeClass + '">' + topBadgeText + '</div></div>' +
                 imgContent +
             '</div>' +
             '<div class="hero-text">' +
@@ -327,7 +338,7 @@
 
         var cards = heroEl.querySelectorAll('.hero-card');
         var newCard = document.createElement('div');
-        newCard.className = 'hero-card';
+        newCard.className = 'hero-card' + heroTapeClass;
         newCard.innerHTML = html;
         heroEl.insertBefore(newCard, heroEl.querySelector('.hero-divider'));
         void newCard.offsetWidth;
@@ -395,7 +406,7 @@
         var meta = FEED_META[item.source];
         var colorClass = meta ? meta.color : '';
         var div = document.createElement('div');
-        div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '');
+        div.className = 'article' + (isLatest ? ' article-latest ' + colorClass : '') + (item.source === 'politi' ? ' police-tape' : '');
         div.setAttribute('data-source', item.source);
         div.setAttribute('data-title', item.title);
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
@@ -403,15 +414,24 @@
             ? '<div class="article-img">' + getSparkCard(item.image.slice(6)) + '</div>'
             : item.image
                 ? '<div class="article-img"><img src="' + escapeHtml(item.image) + '" alt="" loading="lazy"></div>'
-                : '<div class="article-img no-image">\u{1F4F0}</div>';
+                : item.source === 'politi'
+                    ? '<div class="article-img no-image police-img">' + policeEmoji(item._category) + '</div>'
+                    : '<div class="article-img no-image">\u{1F4F0}</div>';
         var nyBadge = isLatest ? '<div class="article-ny">NY</div>' : '';
         var imgWithBadge = '<div class="article-img-wrap">' +
                 imgHtml +
                 '<div class="article-badges"><div class="article-source-overlay ' + colorClass + '">' + (meta ? meta.label : 'Nyheter') + '</div>' + nyBadge + '</div>' +
             '</div>';
+        var policeStatusBadge = '';
+        if (item.source === 'politi') {
+            policeStatusBadge = item._isActive
+                ? '<div class="police-status-badge police-status-pagar">P\u00C5G\u00C5R</div>'
+                : '<div class="police-status-badge police-status-avsluttet">AVSLUTTET</div>';
+        }
         div.innerHTML =
             '<div class="article-body">' +
                 imgWithBadge +
+                policeStatusBadge +
                 '<div class="article-text">' +
                     '<div class="article-title">' + escapeHtml(item.title) + '</div>' +
                     (item.descHtml ? '<div class="article-desc">' + item.descHtml + '</div>' : item.desc ? '<div class="article-desc">' + escapeHtml(item.desc) + '</div>' : '') +
@@ -1780,6 +1800,92 @@
 
     setTimeout(function() { loadBikeCountData(); }, 34000);
     setInterval(loadBikeCountData, CONFIG.bikeCountRefresh);
+
+    /* ═══ POLITILOGGEN ═══ */
+    var POLICE_CAT_EMOJI = {
+        'Brann': '\uD83D\uDD25',
+        'Trafikk': '\uD83D\uDE97',
+        'Voldshendelse': '\uD83D\uDEA8',
+        'Tyveri': '\uD83D\uDD12',
+        'Ro og orden': '\uD83D\uDE94',
+        'Andre hendelser': '\uD83D\uDCCB',
+    };
+
+    function policeEmoji(category) {
+        return POLICE_CAT_EMOJI[category] || '\uD83D\uDEA8';
+    }
+
+    async function loadPoliceLog() {
+        try {
+            var data = await sourceFetch('politi', CONFIG.policeApi);
+            if (!data || !data.data || !data.data.length) throw new Error('No messages');
+
+            var messages = data.data;
+
+            // Group by threadId
+            var threads = {};
+            messages.forEach(function(msg) {
+                var tid = msg.threadId || msg.id;
+                if (!threads[tid]) threads[tid] = [];
+                threads[tid].push(msg);
+            });
+
+            // Build one article per thread
+            var articles = [];
+            Object.keys(threads).forEach(function(tid) {
+                var updates = threads[tid].sort(function(a, b) {
+                    return new Date(a.createdOn) - new Date(b.createdOn);
+                });
+                var first = updates[0];
+                var latest = updates[updates.length - 1];
+
+                // Title: "Category: Municipality, Area"
+                var title = first.category || 'Hendelse';
+                var location = first.municipality || '';
+                if (first.area) location += (location ? ', ' : '') + first.area;
+                if (location) title += ': ' + location;
+
+                // Build description from all updates (newest first)
+                var isActive = latest.isActive;
+                var descParts = [];
+                var descHtmlParts = [];
+                for (var u = updates.length - 1; u >= 0; u--) {
+                    var upd = updates[u];
+                    var txt = (upd.text || '').trim();
+                    if (!txt) continue;
+                    var time = new Date(upd.createdOn).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+                    descParts.push(time + ': ' + txt);
+                    descHtmlParts.push('<span style="color:var(--src-politi)">' + time + '</span> ' + escapeHtml(txt));
+                }
+                var desc = descParts.join(' | ');
+                var descHtml = descHtmlParts.join('<br>');
+
+                articles.push({
+                    title: title,
+                    desc: desc,
+                    descHtml: descHtml,
+                    pubDate: isActive ? new Date().toISOString() : first.createdOn,
+                    image: latest.imageUrl || first.imageUrl || null,
+                    source: 'politi',
+                    categories: [first.category || 'Hendelse'],
+                    _isActive: isActive,
+                    _threadId: tid,
+                    _category: first.category || 'Hendelse',
+                });
+            });
+
+            console.log('[' + SOURCES.politi.label + '] politiet.no \u2192 ' + articles.length + ' threads (' + messages.length + ' messages)');
+            rawFeeds.politi = articles;
+            mergeFeedsAndRender();
+            setSource('politi', 'ok');
+        } catch (e) {
+            console.log('[' + SOURCES.politi.label + '] politiet.no \u2192 ERROR ' + e.message);
+            setSource('politi', 'error');
+        }
+    }
+
+    setTimeout(function() { loadPoliceLog(); }, 36000);
+    setInterval(loadPoliceLog, CONFIG.policeRefresh);
 
     /* ═══ WEATHER ═══ */
     var WX = {
