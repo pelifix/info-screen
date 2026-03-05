@@ -18,8 +18,8 @@
     --src-politi: #60a5fa;
     --bg-deep: #08090c;
     --bg-panel: #0f1115;
-    --bg-card: #161920;
-    --border: rgba(255, 255, 255, 0.06);
+    --bg-card: #1a1e28;
+    --border: rgba(255, 255, 255, 0.10);
     --border-accent: rgba(232, 168, 62, 0.2);
     --text-primary: #f0ece4;
     --text-secondary: #8a8d96;
@@ -404,6 +404,11 @@ body.hide-cursor { cursor: none; }
     display: flex; flex-direction: column;
     padding: 5px 5px 5px 5px; gap: 5px;
     overflow: hidden; position: relative;
+}
+.widgets::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 60px;
+    background: linear-gradient(to top, var(--bg-deep), transparent);
+    z-index: 5; pointer-events: none;
 }
 
 .widget-card {
