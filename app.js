@@ -53,7 +53,7 @@
         bikeCountResource: 'c584f88c-c967-4ced-9e47-4126eb7b1e14',
         bikeCountStation: 'Møllebukta',
         bikeCountRefresh: 10 * 60 * 1000,
-        policeApi: 'https://api.politiet.no/politiloggen/v1/messages?districts=S%C3%B8rVest&municipalities=Randaberg,Sandnes,Sola,Stavanger',
+        policeApi: 'https://api.politiloggen.politiet.no/messages?Districts=S%C3%B8rVest&Municipalities=Randaberg&Municipalities=Sandnes&Municipalities=Sola&Municipalities=Stavanger&Take=20',
         policeRefresh: 2 * 60 * 1000,
     };
 
@@ -905,7 +905,7 @@
     }
 
     async function scrapeFolken() {
-        var html = await sourceFetch('folken', 'https://www.folken.no/folken/index.php', { parse: 'text', skipStatus: true });
+        var html = await sourceFetch('folken', 'https://www.folken.no/folken/', { parse: 'text', skipStatus: true });
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var items = doc.querySelectorAll('.list-item');
         var events = [];
@@ -1841,9 +1841,9 @@
     async function loadPoliceLog() {
         try {
             var data = await sourceFetch('politi', CONFIG.policeApi);
-            if (!data || !data.data || !data.data.length) throw new Error('No messages');
+            if (!data || !data.messages || !data.messages.length) throw new Error('No messages');
 
-            var messages = data.data;
+            var messages = data.messages;
 
             // Group by threadId
             var threads = {};
