@@ -5,6 +5,7 @@
 
     var CONFIG = {
         corsProxy: 'https://api.codetabs.com/v1/proxy/?quest=',
+        corsProxyFallback: 'https://corsproxy.io/?url=',
         rssApi: 'https://api.rss2json.com/v1/api.json?rss_url=',
         feeds: {
             news: 'https://www.nrk.no/toppsaker.rss',
@@ -210,24 +211,31 @@
         // Set loading status
         if (!opts.skipStatus) setSource(sourceKey, 'loading');
 
-        // Build proxied URL
-        var fetchUrl = url;
-        if (proxy === 'rss2json') {
-            fetchUrl = CONFIG.rssApi + encodeURIComponent(url);
-        } else if (proxy === 'codetabs') {
-            fetchUrl = CONFIG.corsProxy + encodeURIComponent(url);
-        }
-
         // Build fetch options
         var fetchOpts = { cache: 'no-store' };
         if (opts.method) fetchOpts.method = opts.method;
         if (opts.headers) fetchOpts.headers = opts.headers;
         if (opts.body) fetchOpts.body = opts.body;
 
-        var resp = await fetch(fetchUrl, fetchOpts);
-        if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+        async function doFetch(fetchUrl) {
+            var resp = await fetch(fetchUrl, fetchOpts);
+            if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+            return parse === 'text' ? resp.text() : resp.json();
+        }
 
-        var data = parse === 'text' ? await resp.text() : await resp.json();
+        var data;
+        if (proxy === 'rss2json') {
+            data = await doFetch(CONFIG.rssApi + encodeURIComponent(url));
+        } else if (proxy === 'codetabs') {
+            try {
+                data = await doFetch(CONFIG.corsProxy + encodeURIComponent(url));
+            } catch (e) {
+                console.log('[' + label + '] codetabs failed (' + e.message + ') → fallback proxy');
+                data = await doFetch(CONFIG.corsProxyFallback + encodeURIComponent(url));
+            }
+        } else {
+            data = await doFetch(url);
+        }
 
         // Store in dev cache
         setDevCache(sourceKey, url, data, opts.cacheKey);
