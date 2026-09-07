@@ -4,8 +4,13 @@
     'use strict';
 
     var CONFIG = {
-        corsProxy: 'https://api.codetabs.com/v1/proxy/?quest=',
-        corsProxyFallback: 'https://corsproxy.io/?url=',
+        // CORS proxies for sources without CORS headers, tried in order until one succeeds.
+        // (corsproxy.io dropped Sept 2026: free tier now requires an API key.)
+        corsProxies: [
+            { name: 'codetabs', url: function(u) { return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u); } },
+            { name: 'redocly',  url: function(u) { return 'https://cors.redoc.ly/' + u; } },
+        ],
+        proxyTimeout: 15 * 1000,   // per proxy attempt (a dead codetabs takes ~20s to 522)
         rssApi: 'https://api.rss2json.com/v1/api.json?rss_url=',
         feeds: {
             news: 'https://www.nrk.no/toppsaker.rss',
@@ -71,14 +76,14 @@
         strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh, proxy: 'rss2json' },
         trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh,   proxy: 'none' },
         sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh, proxy: 'jsonp' },
-        marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh,   proxy: 'codetabs' },
+        marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh,   proxy: 'cors' },
         vaer:        { label: 'V\u00e6r',    status: 'pending', refresh: CONFIG.weatherRefresh,   proxy: 'none' },
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh,     proxy: 'rss2json' },
         bysykler:    { label: 'Bysykler',    status: 'pending', refresh: CONFIG.bikeRefresh,      proxy: 'none' },
         buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh,       proxy: 'none' },
-        konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
-        folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'codetabs' },
-        politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'codetabs' },
+        konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'cors' },
     };
 
     var preRefreshTimers = {};
@@ -217,22 +222,40 @@
         if (opts.headers) fetchOpts.headers = opts.headers;
         if (opts.body) fetchOpts.body = opts.body;
 
-        async function doFetch(fetchUrl) {
-            var resp = await fetch(fetchUrl, fetchOpts);
-            if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
-            return parse === 'text' ? resp.text() : resp.json();
+        async function doFetch(fetchUrl, timeoutMs) {
+            var thisOpts = fetchOpts;
+            var timer = null;
+            if (timeoutMs && window.AbortController) {
+                var ctrl = new AbortController();
+                thisOpts = Object.assign({}, fetchOpts, { signal: ctrl.signal });
+                timer = setTimeout(function() { ctrl.abort(new DOMException('timeout after ' + (timeoutMs / 1000) + 's', 'AbortError')); }, timeoutMs);
+            }
+            try {
+                var resp = await fetch(fetchUrl, thisOpts);
+                if (!resp.ok) throw new Error(label + ' HTTP ' + resp.status);
+                return parse === 'text' ? await resp.text() : await resp.json();
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
         }
 
         var data;
         if (proxy === 'rss2json') {
             data = await doFetch(CONFIG.rssApi + encodeURIComponent(url));
-        } else if (proxy === 'codetabs') {
-            try {
-                data = await doFetch(CONFIG.corsProxy + encodeURIComponent(url));
-            } catch (e) {
-                console.log('[' + label + '] codetabs failed (' + e.message + ') → fallback proxy');
-                data = await doFetch(CONFIG.corsProxyFallback + encodeURIComponent(url));
+        } else if (proxy === 'cors') {
+            var lastErr = null;
+            for (var pi = 0; pi < CONFIG.corsProxies.length; pi++) {
+                var px = CONFIG.corsProxies[pi];
+                try {
+                    data = await doFetch(px.url(url), CONFIG.proxyTimeout);
+                    lastErr = null;
+                    break;
+                } catch (e) {
+                    lastErr = e;
+                    console.log('[' + label + '] ' + px.name + ' failed (' + e.message + ')' + (pi + 1 < CONFIG.corsProxies.length ? ' → next proxy' : ''));
+                }
             }
+            if (lastErr) throw lastErr;
         } else {
             data = await doFetch(url);
         }
