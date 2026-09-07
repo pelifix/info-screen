@@ -76,6 +76,7 @@
         dn:          { label: 'DN',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh, proxy: 'rss2json' },
+        magasin:     { label: 'Magasin',     status: 'pending', refresh: 6 * 60 * 60 * 1000,      proxy: 'none' },       // NVE, weekly (Wed 13:00), sends CORS
         trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh,   proxy: 'none' },
         sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh, proxy: 'jsonp' },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh,   proxy: 'cors' },
@@ -102,6 +103,7 @@
         dn:          { srcKey: 'dn',          label: 'DN',          color: 'src-dn' },
         tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
+        magasin:     { srcKey: 'magasin',     label: 'Magasinfylling', color: 'src-magasin' },
         trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
         sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
         politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi',
@@ -208,6 +210,13 @@
     function rssToJson(xml) {
         var doc = new DOMParser().parseFromString(xml, 'text/xml');
         if (doc.querySelector('parsererror')) throw new Error('RSS parse error');
+        // rss2json emits "YYYY-MM-DD HH:MM:SS" in UTC and timeAgo() relies on that shape, so match it.
+        function rssDate(raw) {
+            var t = new Date(raw).getTime();
+            if (!raw || isNaN(t)) return raw || '';
+            var d = new Date(t), p = function(n) { return String(n).padStart(2, '0'); };
+            return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+        }
         var items = [];
         doc.querySelectorAll('item').forEach(function(it) {
             function txt(tag) { var el = it.getElementsByTagName(tag)[0]; return el ? el.textContent.trim() : ''; }
@@ -218,7 +227,7 @@
             for (var i = 0; i < catEls.length; i++) cats.push(catEls[i].textContent.trim());
             items.push({
                 title: txt('title'), link: txt('link'), guid: txt('guid'), description: txt('description'),
-                pubDate: txt('pubDate') || txt('dc:date'),
+                pubDate: rssDate(txt('pubDate') || txt('dc:date')),
                 thumbnail: media ? (media.getAttribute('url') || '') : '',
                 enclosure: enclosure ? { link: enclosure.getAttribute('url') || '' } : null,
                 categories: cats,
@@ -1324,6 +1333,13 @@
             });
         }
 
+        if (magasinState.no2) {
+            dataBlocks.push(function() {
+                return '<span class="tk-data-item tk-magasin"><span class="tk-data-val">' + fmtPct(magasinState.no2.pct) + '</span>' +
+                    '<span class="tk-data-meta"><span class="tk-data-label">Magasin Sørvest</span><span class="tk-data-unit">normalt ' + fmtPct(magasinState.no2.median) + '</span></span></span>';
+            });
+        }
+
         // Blocks registered by add-on scripts (simen.js etc.)
         if (window.InfoScreen) {
             window.InfoScreen.tickerBlocks.forEach(function(fn) {
@@ -1556,6 +1572,8 @@
             value = bikeCountState.todayTotal || bikeCountState.lwTotal || '';
             unit = bikeCountState.todayTotal ? 'i dag' : 'forrige uke';
             theme = 'sc-bike';
+        } else if (type === 'magasin') {
+            svg = buildMagasinSvg(); emoji = ''; value = ''; unit = ''; theme = 'sc-magasin';   // the SVG carries the numbers itself
         } else {
             svg = buildSparkCardSvg(seqPoints(tkSparkData), null, 400, 200, '#38bdf8', { topRatio: 0.3, gradientId: 'spark-fill' });
             emoji = '\u26A1'; value = tkElectricity.length ? tkElectricity[0].value : ''; unit = 'kr/kWh'; theme = 'sc-elec';
@@ -1633,6 +1651,86 @@
 
     setTimeout(function() { loadElectricityPrices(); }, 22000);
     setInterval(loadElectricityPrices, CONFIG.stromprisRefresh);
+
+    /* ═══ RESERVOIR FILLING (NVE magasinstatistikk) ═══
+       Weekly numbers for price area NO2 (southwest Norway) and the whole country, shown as a spark card in the
+       feed/hero rotation plus a ticker item. The 20-year min/median/max per ISO week gives the "normal" marker. */
+    var magasinState = { no2: null, no: null, week: 0, next: '' };
+    function fmtPct(v, dec) { return Number(v).toFixed(dec == null ? 1 : dec).replace('.', ',') + ' %'; }
+    function magasinPhrase(a) {
+        var d = a.pct - a.median;
+        if (d < -10) return 'langt under normalen';
+        if (d < -3) return 'under normalen';
+        if (d > 10) return 'langt over normalen';
+        if (d > 3) return 'over normalen';
+        return 'nær normalen';
+    }
+    function buildMagasinSvg() {
+        var rows = [{ label: 'SØRVEST-NORGE (NO2)', a: magasinState.no2 }, { label: 'HELE NORGE', a: magasinState.no }];
+        var x0 = 22, w = 356;
+        var s = '<svg viewBox="0 0 400 200" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="font-family:Montserrat,system-ui,sans-serif">';
+        s += '<text x="' + x0 + '" y="26" font-size="11" letter-spacing="2" font-weight="600" fill="rgba(255,255,255,0.45)">MAGASINFYLLING · UKE ' + magasinState.week + '</text>';
+        rows.forEach(function(r, i) {
+            var a = r.a;
+            if (!a) return;
+            var y = 62 + i * 70;
+            var col = (a.pct - a.median < -10) ? '#f59e0b' : '#2dd4bf';
+            var px = function(p) { return x0 + w * Math.max(0, Math.min(100, p)) / 100; };
+            s += '<text x="' + x0 + '" y="' + y + '" font-size="13" letter-spacing="1.5" font-weight="600" fill="rgba(255,255,255,0.7)">' + r.label + '</text>';
+            s += '<text x="' + (x0 + w) + '" y="' + (y + 2) + '" font-size="26" text-anchor="end" font-weight="700" fill="' + col + '">' + fmtPct(a.pct) + '</text>';
+            s += '<rect x="' + x0 + '" y="' + (y + 12) + '" width="' + w + '" height="14" rx="7" fill="rgba(255,255,255,0.07)"/>';
+            s += '<rect x="' + px(a.min) + '" y="' + (y + 12) + '" width="' + Math.max(0, px(a.max) - px(a.min)) + '" height="14" rx="7" fill="rgba(255,255,255,0.08)"/>';
+            s += '<rect x="' + x0 + '" y="' + (y + 12) + '" width="' + Math.max(0, px(a.pct) - x0) + '" height="14" rx="7" fill="' + col + '" opacity="0.9"/>';
+            s += '<line x1="' + px(a.median) + '" x2="' + px(a.median) + '" y1="' + (y + 8) + '" y2="' + (y + 30) + '" stroke="#fff" stroke-width="2"/>';
+            s += '<text x="' + px(a.median) + '" y="' + (y + 44) + '" font-size="11" text-anchor="middle" fill="rgba(255,255,255,0.6)">normalt ' + fmtPct(a.median, 0) + '</text>';
+        });
+        return s + '</svg>';
+    }
+    async function loadMagasin() {
+        var base = 'https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/';
+        try {
+            var res = await Promise.all([
+                sourceFetch('magasin', base + 'HentOffentligDataSisteUke', { skipStatus: true }),
+                sourceFetch('magasin', base + 'HentOffentligDataMinMaxMedian', { skipStatus: true }),
+            ]);
+            var siste = res[0], stats = res[1];
+            function area(type, nr) {
+                var cur = siste.filter(function(r) { return r.omrType === type && r.omrnr === nr; })[0];
+                if (!cur) return null;
+                var m = stats.filter(function(r) { return r.omrType === type && r.omrnr === nr && r.iso_uke === cur.iso_uke; })[0] || {};
+                return {
+                    pct: cur.fyllingsgrad * 100, chg: (cur.endring_fyllingsgrad || 0) * 100, week: cur.iso_uke, next: cur.neste_Publiseringsdato,
+                    median: (m.medianFyllingsGrad || 0) * 100, min: (m.minFyllingsgrad || 0) * 100, max: (m.maxFyllingsgrad || 0) * 100,
+                };
+            }
+            var no2 = area('EL', 2), no = area('NO', 0);
+            if (!no2 || !no) throw new Error('areas missing');
+            magasinState = { no2: no2, no: no, week: no2.week, next: no2.next };
+
+            var nextD = no2.next ? new Date(no2.next) : null;                    // local time, no zone in the string
+            var published = nextD ? new Date(nextD.getTime() - 7 * 86400000) : new Date();
+            var dayN = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+            var nextTxt = nextD ? dayN[nextD.getDay()] + ' ' + nextD.getDate() + '. ' + monN[nextD.getMonth()].substring(0, 3) + ' kl. ' + String(nextD.getHours()).padStart(2, '0') : '';
+            var chgTxt = (no2.chg >= 0 ? '+' : '−') + Math.abs(no2.chg).toFixed(1).replace('.', ',') + ' pp';
+            rawFeeds.magasin = [{
+                title: 'Vannmagasinene i Sørvest-Norge er ' + fmtPct(no2.pct) + ' fulle – ' + magasinPhrase(no2),
+                descHtml: 'Uke ' + no2.week + ': Sørvest-Norge (NO2) <b>' + fmtPct(no2.pct) + '</b>, normalt ' + fmtPct(no2.median) + ' for uka · ' + chgTxt + ' siste uke.<br>' +
+                    'Hele Norge ' + fmtPct(no.pct) + ' (normalt ' + fmtPct(no.median) + ')' + (nextTxt ? ' · neste tall fra NVE ' + nextTxt : '') + '.',
+                pubDate: published.toISOString(),
+                image: 'spark:magasin',
+                source: 'magasin',
+                categories: ['NVE', 'Uke ' + no2.week],
+            }];
+            console.log('[' + SOURCES.magasin.label + '] nve.no → NO2 ' + fmtPct(no2.pct) + ', Norge ' + fmtPct(no.pct));
+            mergeFeedsAndRender();
+            setSource('magasin', 'ok');
+        } catch (e) {
+            console.log('[' + SOURCES.magasin.label + '] nve.no → ERROR ' + e.message);
+            setSource('magasin', 'error');
+        }
+    }
+    setTimeout(loadMagasin, 28000);
+    setInterval(loadMagasin, SOURCES.magasin.refresh);
 
     /* ═══ E39 TRAFFIC ═══ */
     var trafficHours = [];

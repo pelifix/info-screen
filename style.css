@@ -17,6 +17,7 @@
     --src-trafikk: #f97316;
     --src-sykkel: #10b981;
     --src-politi: #60a5fa;
+    --src-magasin: #2dd4bf;
     --bg-deep: #08090c;
     --bg-panel: #0f1115;
     --bg-card: #1a1e28;
@@ -126,6 +127,7 @@ body.hide-cursor { cursor: none; }
 .hero-badge.src-strompris { background: var(--src-strompris); color: var(--bg-deep); }
 .hero-badge.src-trafikk { background: var(--src-trafikk); color: var(--bg-deep); }
 .hero-badge.src-politi { background: var(--src-politi); color: var(--bg-deep); }
+.hero-badge.src-magasin { background: var(--src-magasin); color: var(--bg-deep); }
 
 .hero-text {
     display: flex; flex-direction: column;
@@ -149,6 +151,7 @@ body.hide-cursor { cursor: none; }
 .hero-source.src-strompris { color: var(--src-strompris); }
 .hero-source.src-trafikk { color: var(--src-trafikk); }
 .hero-source.src-politi { color: var(--src-politi); }
+.hero-source.src-magasin { color: var(--src-magasin); }
 .hero-top-badge {
     font-family: var(--font-display); letter-spacing: var(--display-spacing);
     font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
@@ -263,6 +266,7 @@ body.hide-cursor { cursor: none; }
 .article-source.src-trafikk, .article-source-overlay.src-trafikk { color: var(--src-trafikk); }
 .article-source.src-sykkel, .article-source-overlay.src-sykkel { color: var(--src-sykkel); }
 .article-source.src-politi, .article-source-overlay.src-politi { color: var(--src-politi); }
+.article-source.src-magasin, .article-source-overlay.src-magasin { color: var(--src-magasin); }
 
 .article-title {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.15rem; font-weight: var(--display-weight);
@@ -289,6 +293,7 @@ body.hide-cursor { cursor: none; }
 .article-latest.src-trafikk { border-left-color: var(--src-trafikk); }
 .article-latest.src-sykkel { border-left-color: var(--src-sykkel); }
 .article-latest.src-politi { border-left-color: var(--src-politi); }
+.article-latest.src-magasin { border-left-color: var(--src-magasin); }
 .article-badges {
     position: absolute; top: 4px; left: 4px;
     display: flex; gap: 4px; align-items: center; z-index: 2;
@@ -390,6 +395,8 @@ body.hide-cursor { cursor: none; }
 .spark-card-visual.sc-elec { background: linear-gradient(135deg, #0c1a2e 0%, #0f2847 100%); }
 .spark-card-visual.sc-traffic { background: linear-gradient(135deg, #1a1008 0%, #2d1a0a 100%); }
 .spark-card-visual.sc-bike { background: linear-gradient(135deg, #071a12 0%, #0a2d1a 100%); }
+.spark-card-visual.sc-magasin { background: linear-gradient(135deg, #061a1c 0%, #0a2b30 100%); }
+.sc-magasin .spark-card-spark { height: 100%; opacity: 1; }   /* the reservoir SVG is the whole visual */
 .spark-card-spark {
     position: absolute; bottom: 0; left: 0; right: 0; height: 70%;
     opacity: 0.9;
@@ -795,6 +802,7 @@ body.hide-cursor { cursor: none; }
 .ticker-content .tk-data-item.tk-elec { color: var(--electricity); }
 .ticker-content .tk-data-item.tk-traffic { color: var(--src-trafikk); }
 .ticker-content .tk-data-item.tk-bike { color: var(--src-sykkel); }
+.ticker-content .tk-data-item.tk-magasin { color: var(--src-magasin); }
 .ticker-content .tk-data-val {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
     font-size: 1.5rem;
