@@ -152,7 +152,7 @@
             '<div class="simen-value" id="simen-gap">–</div><div class="simen-sub" id="simen-gap-sub">–</div></div>' +
         '<div class="simen-cell simen-clock grow"><div class="simen-label" id="simen-day">Dag – av 6</div>' +
             '<div class="simen-value" id="simen-left">–</div><div class="simen-bar"><div id="simen-bar"></div></div></div>' +
-        '<div class="simen-cell simen-daysc"><div class="simen-label">Km per dag</div><div class="simen-days" id="simen-days"></div></div>' +
+        '<div class="simen-cell simen-daysc"><div class="simen-label">Km per løpsdag (12–12)</div><div class="simen-days" id="simen-days"></div><div class="simen-sub" id="simen-days-sub"></div></div>' +
         '<div class="simen-cell simen-proj"><div class="simen-label">Prognose</div>' +
             '<div class="simen-value" id="simen-proj">–</div><div class="simen-sub" id="simen-proj-sub">–</div></div>';
     hero.parentNode.insertBefore(banner, hero.nextSibling);
@@ -242,6 +242,7 @@
                 var h = Math.max(2, Math.round(km / max * 32));
                 return '<div class="' + cls + '"><div class="bar" style="height:' + h + 'px"></div><div class="val">' + (km > 0 ? Math.round(km) : '·') + '</div></div>';
             }).join('');
+            $('simen-days-sub').textContent = st.km24 != null ? 'siste 24 t: ' + fmtKm(st.km24) + ' km' : '';
         }
 
         var proj = projection();
