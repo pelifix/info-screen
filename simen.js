@@ -151,7 +151,7 @@
         '<div class="simen-cell simen-id">' +
             '<div class="simen-flag">' + FLAG_NOR + '<span class="simen-live">LIVE</span></div>' +
             '<div><div class="simen-name"><span id="simen-name">Simen Holvik</span></div>' +
-            '<div class="simen-event" id="simen-event">' + esc(CFG.eventName) + '</div></div>' +
+            '<div class="simen-event"><div>· ' + esc(CFG.eventName) + '</div><div id="simen-event-runners"></div></div></div>' +
             '<div class="simen-pos" id="simen-pos">–</div>' +
         '</div>' +
         '<div class="simen-cell simen-km"><div class="simen-label">Distanse</div>' +
@@ -232,7 +232,7 @@
     function renderBanner() {
         if (!st.hasData) return;
         $('simen-name').textContent = st.name;
-        $('simen-event').textContent = CFG.eventName + ' · ' + st.total + ' løpere';
+        $('simen-event-runners').textContent = '· ' + st.total + ' løpere';
         var posEl = $('simen-pos');
         posEl.textContent = st.pos + '. PLASS';
         posEl.classList.toggle('not-leading', st.pos !== 1);

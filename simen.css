@@ -56,7 +56,8 @@
     display: flex; align-items: center; gap: 10px;
 }
 .simen-name > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.simen-event { font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.simen-event { font-size: 0.7rem; line-height: 1.4; color: var(--text-secondary); margin-top: 3px; letter-spacing: 0.4px; }
+.simen-event > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .simen-live {
     display: inline-flex; align-items: center; gap: 6px;
     font-family: var(--font-display); font-weight: 700; font-size: 0.6rem; letter-spacing: 2px; color: var(--nor-red);
