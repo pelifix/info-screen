@@ -9,6 +9,10 @@
         corsProxies: [
             { name: 'codetabs', url: function(u) { return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u); } },
             { name: 'redocly',  url: function(u) { return 'https://cors.redoc.ly/' + u; } },
+            // These two strip the browser Origin header (Avinor rejects requests that carry one). Only used when a
+            // source asks for them via opts.proxyOrder: cors.lol rate-limits hard and allorigins is flaky.
+            { name: 'corslol',    onRequest: true, url: function(u) { return 'https://api.cors.lol/?url=' + encodeURIComponent(u); } },
+            { name: 'allorigins', onRequest: true, url: function(u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); } },
         ],
         proxyTimeout: 15 * 1000,   // per proxy attempt (a dead codetabs takes ~20s to 522)
         rssApi: 'https://api.rss2json.com/v1/api.json?rss_url=',
@@ -84,6 +88,7 @@
         bilder:      { label: 'Bilder',      status: 'pending', refresh: CONFIG.imageRefresh,     proxy: 'rss2json' },
         bysykler:    { label: 'Bysykler',    status: 'pending', refresh: CONFIG.bikeRefresh,      proxy: 'none' },
         buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh,       proxy: 'none' },
+        fly:         { label: 'Fly Sola',    status: 'pending', refresh: 5 * 60 * 1000,           proxy: 'cors' },       // Avinor allows one poll per 3 min; the Origin-stripping proxy rate-limits, so 5
         konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         tou:         { label: 'Tou',         status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
@@ -288,15 +293,19 @@
             data = rssToJson(await doFetch(url));
         } else if (proxy === 'cors') {
             var lastErr = null;
-            for (var pi = 0; pi < CONFIG.corsProxies.length; pi++) {
-                var px = CONFIG.corsProxies[pi];
+            // opts.proxyOrder = ['allorigins', 'codetabs'] picks and orders proxies for sources with special needs
+            var proxies = opts.proxyOrder
+                ? opts.proxyOrder.map(function(n) { return CONFIG.corsProxies.filter(function(p) { return p.name === n; })[0]; }).filter(Boolean)
+                : CONFIG.corsProxies.filter(function(p) { return !p.onRequest; });
+            for (var pi = 0; pi < proxies.length; pi++) {
+                var px = proxies[pi];
                 try {
                     data = await doFetch(px.url(url), CONFIG.proxyTimeout);
                     lastErr = null;
                     break;
                 } catch (e) {
                     lastErr = e;
-                    console.log('[' + label + '] ' + px.name + ' failed (' + e.message + ')' + (pi + 1 < CONFIG.corsProxies.length ? ' → next proxy' : ''));
+                    console.log('[' + label + '] ' + px.name + ' failed (' + e.message + ')' + (pi + 1 < proxies.length ? ' → next proxy' : ''));
                 }
             }
             if (lastErr) throw lastErr;
@@ -1311,6 +1320,83 @@
     setTimeout(function() { loadBusDepartures(); }, 14000);
     setInterval(loadBusDepartures, CONFIG.busRefresh);
 
+    /* ═══ FLIGHTS FROM SOLA (Avinor XmlFeed) ═══
+       Shares the bottom card with the bus list: 40 s bus, 20 s flights. Times in the feed are UTC; status codes
+       are N new info, E new time, D departed, A arrived, C cancelled. The feed rejects browser Origins, so proxy. */
+    var FLY_URL = 'https://asrv.avinor.no/XmlFeed/v1.0?airport=SVG&TimeFrom=0&TimeTo=6&direction=D';
+    var FLY_AIRPORTS = {
+        OSL: 'Oslo', BGO: 'Bergen', TRD: 'Trondheim', TRF: 'Sandefjord Torp', KRS: 'Kristiansand', AES: 'Ålesund', HAU: 'Haugesund',
+        BOO: 'Bodø', TOS: 'Tromsø', EVE: 'Harstad/Narvik', KSU: 'Kristiansund', MOL: 'Molde', FRO: 'Florø', SVG: 'Stavanger',
+        CPH: 'København', BLL: 'Billund', AAL: 'Aalborg', AMS: 'Amsterdam', ABZ: 'Aberdeen', LHR: 'London Heathrow', LGW: 'London Gatwick',
+        STN: 'London Stansted', ARN: 'Stockholm', GOT: 'Göteborg', HEL: 'Helsinki', FRA: 'Frankfurt', MUC: 'München', CDG: 'Paris',
+        BER: 'Berlin', DUS: 'Düsseldorf', HAM: 'Hamburg', BRU: 'Brussel', EDI: 'Edinburgh', MAN: 'Manchester', NCL: 'Newcastle', DUB: 'Dublin',
+        AGP: 'Malaga', ALC: 'Alicante', PMI: 'Palma', BCN: 'Barcelona', LPA: 'Gran Canaria', TFS: 'Tenerife', ACE: 'Lanzarote', FUE: 'Fuerteventura',
+        FNC: 'Madeira', LIS: 'Lisboa', FAO: 'Faro', KRK: 'Krakow', WAW: 'Warszawa', GDN: 'Gdansk', RZE: 'Rzeszów', RIX: 'Riga', VNO: 'Vilnius',
+        KUN: 'Kaunas', TLL: 'Tallinn', IST: 'Istanbul', AYT: 'Antalya', NCE: 'Nice', FCO: 'Roma', MXP: 'Milano', VIE: 'Wien', ZRH: 'Zürich',
+        PRG: 'Praha', BUD: 'Budapest', SPU: 'Split', DBV: 'Dubrovnik', ATH: 'Athen', LCA: 'Larnaca', KEF: 'Reykjavik',
+    };
+    var flyEl = document.getElementById('fly-list'), flyBlock = document.getElementById('fly-block'), busBlock = document.getElementById('bus-block');
+    var flights = [];
+    function flyText(el, tag) { var n = el.getElementsByTagName(tag)[0]; return n ? n.textContent.trim() : ''; }
+    function parseFlights(xml) {
+        var doc = new DOMParser().parseFromString(xml, 'text/xml');
+        if (doc.querySelector('parsererror')) throw new Error('XML parse error');
+        var out = [];
+        doc.querySelectorAll('flight').forEach(function(f) {
+            if (flyText(f, 'arr_dep') !== 'D') return;
+            var sched = new Date(flyText(f, 'schedule_time'));
+            if (isNaN(sched.getTime())) return;
+            var st = f.getElementsByTagName('status')[0];
+            var code = st ? (st.getAttribute('code') || '') : '';
+            if (code === 'D') return;                                           // already departed
+            var newTime = st && st.getAttribute('time') ? new Date(st.getAttribute('time')) : null;
+            var when = (code === 'E' && newTime && !isNaN(newTime.getTime())) ? newTime : sched;
+            var iata = flyText(f, 'airport');
+            out.push({ sched: sched, when: when, code: code, id: flyText(f, 'flight_id'), dest: FLY_AIRPORTS[iata] || iata, gate: flyText(f, 'gate') });
+        });
+        out.sort(function(a, b) { return a.when - b.when; });
+        return out;
+    }
+    function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+    function renderFlights() {
+        var now = Date.now();
+        var rows = flights.filter(function(f) { return f.when.getTime() > now - 5 * 60000; }).slice(0, 7);
+        if (!rows.length) { flyEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen avganger de neste timene</div>'; return; }
+        flyEl.innerHTML = rows.map(function(f) {
+            var cancelled = f.code === 'C', delayed = f.code === 'E' && f.when.getTime() - f.sched.getTime() > 4 * 60000;
+            var cls = cancelled ? ' cancelled' : delayed ? ' delayed' : '';
+            var status = cancelled ? 'Innstilt' : delayed ? 'Ny tid (' + hhmm(f.sched) + ')' : (f.gate ? 'Gate ' + escapeHtml(f.gate) : '');
+            return '<div class="fly-item">' +
+                '<div class="fly-time' + cls + '">' + hhmm(f.when) + '</div>' +
+                '<div class="fly-dest">' + escapeHtml(f.dest) + '<span class="fly-no">' + escapeHtml(f.id) + '</span></div>' +
+                '<div class="fly-status' + cls + '">' + status + '</div>' +
+            '</div>';
+        }).join('');
+    }
+    async function loadFlights() {
+        try {
+            var xml = await sourceFetch('fly', FLY_URL, { parse: 'text', skipStatus: true, proxyOrder: ['corslol', 'codetabs', 'allorigins'] });   // redocly forwards Origin → 401
+            flights = parseFlights(xml);
+            console.log('[' + SOURCES.fly.label + '] avinor.no → ' + flights.length + ' departures');
+            renderFlights();
+            setSource('fly', 'ok');
+        } catch (e) {
+            console.log('[' + SOURCES.fly.label + '] avinor.no → ERROR ' + e.message);
+            setSource('fly', 'error');
+        }
+    }
+    // Bus 40 s, flights 20 s (bus only until flights have loaded)
+    var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
+    setInterval(function() {
+        var showFly = flights.length > 0 && (Date.now() - flyCycleStart) % FLY_CYCLE_MS >= FLY_CYCLE_MS - FLY_SHOW_MS;
+        if (showFly === !flyBlock.hidden) return;
+        if (showFly) renderFlights();                                       // re-filter departed flights before showing
+        flyBlock.hidden = !showFly;
+        busBlock.hidden = showFly;
+    }, 1000);
+    setTimeout(loadFlights, 16000);
+    setInterval(loadFlights, SOURCES.fly.refresh);
+
     /* ═══ CITY BIKES (Entur GBFS) ═══ */
     var bikeEl = document.getElementById('bike-list');
 
@@ -1553,7 +1639,7 @@
     async function loadFinancialData() {
         try {
             var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=2';
-            var data = await sourceFetch('marked', nbUrl);
+            var data = await sourceFetch('marked', nbUrl, { proxy: 'none' });   // Norges Bank echoes the Origin header: direct fetch works
 
             var ds = data.data.dataSets[0];
             var dims = data.data.structure.dimensions.series;
