@@ -753,7 +753,7 @@
         diIndex = 0;
         images.forEach(function(img, i) {
             var div = document.createElement('div');
-            div.className = 'di-slide ' + (i % 2 === 0 ? 'kb-a' : 'kb-b') + (i === 0 ? ' active' : '');
+            div.className = 'di-slide ' + (i % 2 === 0 ? 'kb-a' : 'kb-b') + (i === 0 ? ' active' : '') + (img.contain ? ' contain' : '');
             var el = document.createElement('img');
             el.src = img.live ? img.src + (img.src.indexOf('?') >= 0 ? '#' : '?t=') + Date.now() : img.src;
             el.alt = img.caption; el.loading = i < 2 ? 'eager' : 'lazy';
@@ -814,6 +814,20 @@
                 });
             }
         } catch (e) { console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ERROR ' + e.message); }
+        // Latest xkcd, letterboxed (comics are tall and white). RSS via rss2json first, JSON via the proxies as fallback.
+        var xkcdImg = null;
+        try {
+            var xk = await sourceFetch('bilder', 'https://xkcd.com/rss.xml', { skipStatus: true, cacheKey: 'dev:xkcd:rss' });
+            var xkItem = xk && xk.status === 'ok' && xk.items && xk.items[0];
+            var xkMatch = xkItem && /<img[^>]+src="([^"]+)"/i.exec(xkItem.description || '');
+            if (xkMatch) xkcdImg = { src: xkMatch[1].replace('http://', 'https://'), caption: 'xkcd \u00b7 ' + (xkItem.title || ''), live: false, contain: true };
+        } catch (e) { console.log('[' + SOURCES.bilder.label + '] xkcd rss \u2192 ERROR ' + e.message); }
+        if (!xkcdImg) {
+            try {
+                var xj = await sourceFetch('bilder', 'https://xkcd.com/info.0.json', { proxy: 'cors', skipStatus: true, cacheKey: 'dev:xkcd:json' });
+                if (xj && xj.img) xkcdImg = { src: xj.img.replace('http://', 'https://'), caption: 'xkcd \u00b7 ' + (xj.safe_title || xj.title || ''), live: false, contain: true };
+            } catch (e) { console.log('[' + SOURCES.bilder.label + '] xkcd json \u2192 ERROR ' + e.message); }
+        }
         // Radar + webcams
         liveImgs.push({
             src: 'https://api.met.no/weatherapi/radar/2.0/?type=reflectivity&area=southwestern_norway&content=animation',
@@ -835,6 +849,7 @@
             }
         }
         while (bi < bingImgs.length) images.push(bingImgs[bi++]);
+        if (xkcdImg) images.push(xkcdImg);
         if (images.length) {
             console.log('[' + SOURCES.bilder.label + '] rss2json \u2192 ' + images.length + ' images');
             buildSlideshow(images);

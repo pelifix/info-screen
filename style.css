@@ -531,6 +531,8 @@ body.hide-cursor { cursor: none; }
 .di-slide.kb-b img { animation: kb-b 18s ease-in-out forwards; }
 @keyframes kb-a { 0% { transform: scale(1); } 100% { transform: scale(1.12) translate(-1.5%, -1%); } }
 @keyframes kb-b { 0% { transform: scale(1.1) translate(-1%, 1%); } 100% { transform: scale(1) translate(1%, -0.5%); } }
+/* Letterboxed slides (xkcd): whole image visible on white, no Ken Burns zoom, clear of the caption strip */
+.di-slide.contain img { object-fit: contain; animation: none; background: #fff; padding: 8px 10px 34px; box-sizing: border-box; }
 
 .di-caption {
     position: absolute; bottom: 0; left: 0; right: 0;
