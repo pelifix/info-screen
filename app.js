@@ -86,6 +86,10 @@
         buss:        { label: 'Buss',        status: 'pending', refresh: CONFIG.busRefresh,       proxy: 'none' },
         konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        tou:         { label: 'Tou',         status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        solvberget:  { label: 'Sølvberget',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        dnbarena:    { label: 'DNB Arena',   status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
+        forum:       { label: 'Forum',       status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'cors' },
         simen:       { label: 'Simen',       status: 'pending', refresh: 60 * 1000,               proxy: 'cors' },   // see simen.js
     };
@@ -891,7 +895,7 @@
         var p = datePart.split('-');
         var day = parseInt(p[2]);
         var mon = parseInt(p[1]) - 1;
-        var todayStr = new Date().toISOString().substring(0, 10);
+        var todayStr = localIsoMin(new Date()).substring(0, 10);   // local date, not UTC
         var isToday = datePart === todayStr;
         var dateStr = day + '. ' + monN[mon].substring(0, 3);
         return { label: isToday ? time : dateStr, time: time, isToday: isToday };
@@ -1039,17 +1043,118 @@
         return events;
     }
 
+    function localIsoMin(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
+            'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    // Tou: the site's own events endpoint (JSON). Zones are the halls; off-site bookings (e.g. Konserthuset) are skipped.
+    async function scrapeTou() {
+        var data = await sourceFetch('tou', 'https://www.touofficial.com/api/eventsEdge?', { skipStatus: true });
+        if (!Array.isArray(data)) throw new Error('unexpected shape');
+        var events = [];
+        data.forEach(function(e) {
+            var cf = e.custom_fields || {};
+            if (cf.published === false || !e.name || !e.start_time) return;
+            if (/cancel|avlyst/i.test(cf.eventStatus || '')) return;
+            var zone = cf.zone || '';
+            if (/konserthus/i.test(zone)) return;
+            var d = new Date(e.start_time);
+            if (isNaN(d.getTime())) return;
+            events.push({
+                title: e.name,
+                date: localIsoMin(d),
+                venue: 'Tou' + (zone ? ' · ' + zone : ''),
+                icon: '🎵',
+                image: (e.photo && e.photo.urls && (e.photo.urls.small || e.photo.urls.micro)) || '',
+            });
+        });
+        return events;
+    }
+
+    // Sølvberget: server-rendered cards, date as Norwegian text ("Mandag 7. september, kl. 10:00, 1. etasje, Allrommet").
+    var NO_MONTHS = { januar: '01', februar: '02', mars: '03', april: '04', mai: '05', juni: '06', juli: '07', august: '08', september: '09', oktober: '10', november: '11', desember: '12' };
+    async function scrapeSolvberget() {
+        var html = await sourceFetch('solvberget', 'https://www.solvberget.no/hva-skjer', { parse: 'text', skipStatus: true });
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var cards = doc.querySelectorAll('a.content-box-card');
+        var events = [], now = new Date();
+        for (var i = 0; i < cards.length && events.length < 40; i++) {
+            var c = cards[i];
+            var meta = c.querySelector('p.text-x-small'), h = c.querySelector('h3');
+            if (!meta || !h) continue;
+            var m = /(\d{1,2})\.\s*([a-zæøå]+),?\s*kl\.?\s*(\d{1,2})[:.](\d{2})(?:,\s*(.*))?/i.exec(meta.textContent.trim());
+            if (!m || !NO_MONTHS[m[2].toLowerCase()]) continue;
+            var where = (m[5] || '').trim();
+            if (/madla|rennesøy|finnøy/i.test(where)) continue;   // branch libraries
+            var mon = NO_MONTHS[m[2].toLowerCase()];
+            var year = now.getFullYear();
+            if (parseInt(mon, 10) < now.getMonth()) year++;         // listing runs into next year
+            var img = c.querySelector('img.content-box-image');
+            events.push({
+                title: h.textContent.trim(),
+                date: year + '-' + mon + '-' + m[1].padStart(2, '0') + 'T' + m[3].padStart(2, '0') + ':' + m[4],
+                venue: 'Sølvberget',
+                icon: '📚',
+                image: img ? (img.getAttribute('src') || '') : '',
+            });
+        }
+        return events;
+    }
+
+    // DNB Arena: concerts and shows table (Oilers matches live elsewhere and are not listed).
+    async function scrapeDnbArena() {
+        var html = await sourceFetch('dnbarena', 'https://www.dnbarena.no/events/', { parse: 'text', skipStatus: true });
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var rows = doc.querySelectorAll('tr.event-item');
+        var events = [];
+        for (var i = 0; i < rows.length && events.length < 30; i++) {
+            var r = rows[i], tds = r.querySelectorAll('td'), t = r.querySelector('time[datetime]');
+            if (!t || tds.length < 2) continue;
+            var ts = parseInt(t.getAttribute('datetime'), 10) * 1000;
+            if (!ts) continue;
+            var img = tds[0].querySelector('img');
+            var cls = r.className || '';
+            var icon = /sport|oilers/i.test(cls) ? '🏒' : /show/i.test(cls) ? '🎭' : '🎵';
+            events.push({ title: tds[0].textContent.trim(), date: localIsoMin(new Date(ts)), venue: 'DNB Arena', icon: icon, image: img ? (img.getAttribute('src') || '') : '' });
+        }
+        return events;
+    }
+
+    // Stavanger Forum: its own site is dead, but hall bookings for Forum Expo are in the municipal open data
+    // (one row per hall per day, so dedupe on name + day). The organiser field can hold private names, so it is not shown.
+    async function scrapeForumExpo() {
+        var url = 'https://opencom.no/api/3/action/datastore_search?resource_id=064a2552-152f-4b8a-b1cc-c605b1a47553' +
+            '&filters=' + encodeURIComponent('{"Sted":"Forum Expo"}') + '&limit=500';
+        var data = await sourceFetch('forum', url, { skipStatus: true });
+        var recs = (data && data.result && data.result.records) || [];
+        var seen = {}, events = [];
+        var todayStr = localIsoMin(new Date()).substring(0, 10);
+        recs.forEach(function(r) {
+            if (!r.Arrangement || !r.Fra) return;
+            var day = String(r.Fra).substring(0, 10);
+            if (day < todayStr) return;
+            var key = String(r.Arrangement).toLowerCase() + '|' + day;
+            if (seen[key]) return;
+            seen[key] = true;
+            events.push({ title: String(r.Arrangement).trim(), date: String(r.Fra).substring(0, 16), venue: 'Stavanger Forum', icon: '🎪', image: '' });
+        });
+        return events;
+    }
+
+    var EVENT_SCRAPERS = { konserthus: scrapeKonserthus, folken: scrapeFolken, tou: scrapeTou, solvberget: scrapeSolvberget, dnbarena: scrapeDnbArena, forum: scrapeForumExpo };
+    var MAX_EVENTS = 24, MAX_EVENTS_PER_VENUE = 8;
+
     async function loadEvents() {
-        setSource('konserthus', 'loading');
-        setSource('folken', 'loading');
+        var srcKeys = Object.keys(EVENT_SCRAPERS);
+        srcKeys.forEach(function(k) { setSource(k, 'loading'); });
         try {
-            var results = await Promise.allSettled([scrapeKonserthus(), scrapeFolken()]);
-            var srcKeys = ['konserthus', 'folken'];
+            var results = await Promise.allSettled(srcKeys.map(function(k) { return EVENT_SCRAPERS[k](); }));
             var all = [];
             results.forEach(function(r, idx) {
                 if (r.status === 'fulfilled') {
                     console.log('[' + SOURCES[srcKeys[idx]].label + '] proxy \u2192 ' + r.value.length + ' events');
-                    all = all.concat(r.value);
+                    all = all.concat(r.value.map(function(e) { e.src = srcKeys[idx]; return e; }));
                     setSource(srcKeys[idx], 'ok');
                 } else {
                     console.log('[' + SOURCES[srcKeys[idx]].label + '] proxy \u2192 ERROR ' + (r.reason && r.reason.message || r.reason));
@@ -1060,14 +1165,27 @@
             if (!all.length) { renderEvents(FALLBACK_EVENTS); return; }
 
             var now = new Date();
-            var nowStr = now.toISOString().substring(0, 10);
+            var nowStr = localIsoMin(now).substring(0, 10);
             var maxDate = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-            var maxStr = maxDate.toISOString().substring(0, 10);
+            var maxStr = localIsoMin(maxDate).substring(0, 10);
             all = all.filter(function(e) {
                 var d = e.date && e.date.substring(0, 10);
                 return d && d >= nowStr && d <= maxStr;
             });
             all.sort(function(a, b) { return a.date.localeCompare(b.date); });
+            // Cancelled events are noise on a what's-on board; venues also list some events twice
+            var seenEv = {};
+            all = all.filter(function(e) {
+                if (/^avlyst\b/i.test(e.title)) return false;
+                var k = e.title.toLowerCase().trim() + '|' + e.date;
+                if (seenEv[k]) return false;
+                seenEv[k] = true;
+                return true;
+            });
+            // No single venue may crowd out the others (Sølvberget alone has several small events a day)
+            var perSrc = {};
+            all = all.filter(function(e) { perSrc[e.src] = (perSrc[e.src] || 0) + 1; return perSrc[e.src] <= MAX_EVENTS_PER_VENUE; });
+            all = all.slice(0, MAX_EVENTS);
 
             var events = all.map(function(e) {
                 return { icon: e.icon, rawDate: e.date, title: e.title, venue: e.venue, image: e.image || '' };
@@ -1075,10 +1193,8 @@
 
             renderEvents(events.length ? events : FALLBACK_EVENTS);
         } catch (e) {
-            console.log('[' + SOURCES.konserthus.label + '] proxy \u2192 ERROR ' + e.message);
-            console.log('[' + SOURCES.folken.label + '] proxy \u2192 ERROR ' + e.message);
-            setSource('konserthus', 'error');
-            setSource('folken', 'error');
+            console.log('[Hva skjer] \u2192 ERROR ' + e.message);
+            srcKeys.forEach(function(k) { setSource(k, 'error'); });
             renderEvents(FALLBACK_EVENTS);
         }
     }
