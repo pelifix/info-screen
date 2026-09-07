@@ -1375,7 +1375,7 @@
     }
     async function loadFlights() {
         try {
-            var xml = await sourceFetch('fly', FLY_URL, { parse: 'text', skipStatus: true, proxyOrder: ['corslol', 'codetabs', 'allorigins'] });   // redocly forwards Origin → 401
+            var xml = await sourceFetch('fly', FLY_URL, { parse: 'text', skipStatus: true, proxyOrder: ['codetabs', 'corslol', 'allorigins'] });   // redocly forwards Origin → 401; cors.lol rate-limits
             flights = parseFlights(xml);
             console.log('[' + SOURCES.fly.label + '] avinor.no → ' + flights.length + ' departures');
             renderFlights();
@@ -1383,8 +1383,10 @@
         } catch (e) {
             console.log('[' + SOURCES.fly.label + '] avinor.no → ERROR ' + e.message);
             setSource('fly', 'error');
+            if (!flyRetryTimer) flyRetryTimer = setTimeout(function() { flyRetryTimer = null; loadFlights(); }, 90 * 1000);   // proxies are flaky: retry soon once
         }
     }
+    var flyRetryTimer = null;
     // Bus 40 s, flights 20 s (bus only until flights have loaded)
     var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
     setInterval(function() {
