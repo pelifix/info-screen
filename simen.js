@@ -16,11 +16,13 @@
         raceStart: '2026-09-03T12:00:00+02:00',
         raceHours: 144,
         hideAfter: '2026-09-12T12:00:00+02:00',     // everything disappears on its own after this
-        eventName: 'EMU 6-dagers · Balatonfüred, Ungarn',
+        eventName: 'EMU 6-dagers · Balatonfüred',
         videoCaption: 'Balatonfüred — EMU 6-Day Race, direkte',
         resultsRefresh: 60 * 1000,
         lapsRefresh: 5 * 60 * 1000,
         lapKm: 0.8982,
+        breakHintFactor: 2,                         // current lap > factor × last lap (and > breakHintMinSec) → 'mulig pause'
+        breakHintMinSec: 15 * 60,
         milestones: [800, 900, 1000],
         worldRecordKm: 1036.851,                    // men's 6-day world record (Yiannis Kouros, 2005) — confirm
         lapConfettiMs: 90 * 1000,
@@ -46,7 +48,7 @@
 
     /* ── state ── */
     var st = {
-        hasData: false, pos: null, km: null, laps: null, lastLap: '', mark: '', total: 0,
+        hasData: false, pos: null, km: null, laps: null, lastLap: '', lastLapAt: null, mark: '', total: 0,
         name: 'Simen Holvik', behind: null, ahead: null,
         perDay: null, km24: null, finished: Date.now() >= raceEnd,
     };
@@ -65,6 +67,11 @@
         var s = Math.max(0, Math.floor(ms / 1000));
         return Math.floor(s / 3600) + ':' + pad2(Math.floor((s % 3600) / 60)) + ':' + pad2(s % 60);
     }
+    function fmtLap(ms) {
+        var s = Math.max(0, Math.floor(ms / 1000));
+        return s >= 3600 ? fmtDuration(ms) : Math.floor(s / 60) + ':' + pad2(s % 60);
+    }
+    function surname(name) { return String(name || '').trim().split(/\s+/).pop(); }
     function iso3(countryField) { return (countryField || '').split('_')[0].toUpperCase(); }
     function parseHms(s) {
         var p = String(s || '').trim().split(':').map(Number);
@@ -84,6 +91,8 @@
         st.total = rows.length;
         st.pos = +me[0]; st.name = me[5];
         st.laps = +me[10]; st.km = parseFloat(me[11]); st.lastLap = me[16] || ''; st.mark = me[24] || '';
+        var lapAt = parseHms(me[12]);                      // col 12 = race clock when the last lap was recorded
+        st.lastLapAt = lapAt > 0 ? raceStart + lapAt * 1000 : null;
         st.behind = null; st.ahead = null;
         rows.forEach(function(r) {
             var p = +r[0];
@@ -140,14 +149,16 @@
     banner.id = 'simen-banner';
     banner.innerHTML =
         '<div class="simen-cell simen-id">' +
-            '<div class="simen-flag">' + FLAG_NOR + '</div>' +
-            '<div><div class="simen-name"><span id="simen-name">Simen Holvik</span><span class="simen-live">LIVE</span></div>' +
+            '<div class="simen-flag">' + FLAG_NOR + '<span class="simen-live">LIVE</span></div>' +
+            '<div><div class="simen-name"><span id="simen-name">Simen Holvik</span></div>' +
             '<div class="simen-event" id="simen-event">' + esc(CFG.eventName) + '</div></div>' +
             '<div class="simen-pos" id="simen-pos">–</div>' +
         '</div>' +
         '<div class="simen-cell simen-km"><div class="simen-label">Distanse</div>' +
             '<div><span class="simen-value" id="simen-km">–<small>km</small></span></div>' +
             '<div class="simen-sub" id="simen-laps">–</div></div>' +
+        '<div class="simen-cell simen-lap"><div class="simen-label" id="simen-lap-label">Denne runden</div>' +
+            '<div class="simen-value" id="simen-lap">–</div><div class="simen-sub" id="simen-lap-sub">–</div></div>' +
         '<div class="simen-cell simen-gap"><div class="simen-label" id="simen-gap-label">Ledelse</div>' +
             '<div class="simen-value" id="simen-gap">–</div><div class="simen-sub" id="simen-gap-sub">–</div></div>' +
         '<div class="simen-cell simen-clock grow"><div class="simen-label" id="simen-day">Dag – av 6</div>' +
@@ -161,6 +172,7 @@
     var shownKm = null, kmAnim = null;
     function animateKm(target) {
         var el = $('simen-km');
+        el.classList.toggle('wide', target >= 1000);
         if (shownKm == null || Math.abs(target - shownKm) > 50) {
             shownKm = target;
             el.innerHTML = fmtKm(target) + '<small>km</small>';
@@ -190,10 +202,25 @@
             $('simen-day').textContent = 'Starter om';
             $('simen-left').textContent = fmtDuration(raceStart - now);
         } else {
-            $('simen-day').textContent = 'Dag ' + day + ' av 6 · tid igjen';
+            $('simen-day').textContent = 'Dag ' + day + '/6 · tid igjen';
             $('simen-left').textContent = fmtDuration(raceEnd - now);
         }
+        renderLapTimer(now);
         positionVideo();   // keeps the fixed video box glued to its slot if the layout shifts
+    }
+    // Time since the last lap was recorded, ticking up. Resets when the next results poll (60 s) shows a new lap,
+    // so it can overshoot by up to a minute. Korido marks breaks with mark === 'rest'.
+    function renderLapTimer(now) {
+        var el = $('simen-lap'), label = $('simen-lap-label');
+        if (!st.hasData || st.lastLapAt == null || now < raceStart || now >= raceEnd) {
+            label.textContent = 'Denne runden'; el.textContent = '–'; el.className = 'simen-value'; return;
+        }
+        var ms = now - st.lastLapAt, lastSec = parseHms(st.lastLap);
+        var rest = st.mark === 'rest';
+        var maybeBreak = !rest && ms / 1000 > Math.max(CFG.breakHintMinSec, lastSec * CFG.breakHintFactor);
+        label.textContent = rest ? 'Pause' : maybeBreak ? 'Mulig pause' : 'Denne runden';
+        el.textContent = fmtLap(ms);
+        el.className = 'simen-value' + (rest ? ' rest' : maybeBreak ? ' maybe-rest' : '');
     }
 
     function gapText() {
@@ -211,25 +238,25 @@
         posEl.classList.toggle('not-leading', st.pos !== 1);
         animateKm(st.km);
 
-        var lapInfo = st.laps + ' runder';
-        if (st.mark === 'rest') lapInfo += ' · <span class="rest">PAUSE</span>';
-        else if (st.lastLap) {
+        $('simen-laps').textContent = st.laps + ' runder';
+        var lapSub = '';
+        if (st.lastLap) {
             var sec = parseHms(st.lastLap);
-            lapInfo += ' · siste ' + esc(st.lastLap) + (sec > 0 ? ' (' + fmtKm(CFG.lapKm / sec * 3600) + ' km/t)' : '');
+            lapSub = 'siste ' + st.lastLap + (sec > 0 ? ' · ' + fmtKm(CFG.lapKm / sec * 3600) + ' km/t' : '');
         }
-        $('simen-laps').innerHTML = lapInfo;
+        $('simen-lap-sub').textContent = lapSub;
 
         var gapEl = $('simen-gap');
         if (st.pos === 1 && st.behind) {
             $('simen-gap-label').textContent = 'Ledelse';
             gapEl.className = 'simen-value up';
             gapEl.textContent = '▲ ' + fmtKm(st.km - st.behind.km) + ' km';
-            $('simen-gap-sub').textContent = 'foran ' + st.behind.name + ' (' + iso3(st.behind.country) + ')';
+            $('simen-gap-sub').textContent = 'foran ' + surname(st.behind.name) + ' (' + iso3(st.behind.country) + ')';
         } else if (st.ahead) {
             $('simen-gap-label').textContent = 'Bak leder';
             gapEl.className = 'simen-value down';
             gapEl.textContent = '▼ ' + fmtKm(st.ahead.km - st.km) + ' km';
-            $('simen-gap-sub').textContent = 'bak ' + st.ahead.name + ' (' + iso3(st.ahead.country) + ')';
+            $('simen-gap-sub').textContent = 'bak ' + surname(st.ahead.name) + ' (' + iso3(st.ahead.country) + ')';
         } else {
             gapEl.className = 'simen-value'; gapEl.textContent = '–'; $('simen-gap-sub').textContent = '';
         }
@@ -246,7 +273,7 @@
         }
 
         var proj = projection();
-        $('simen-proj').textContent = proj != null ? '≈ ' + fmtKm(proj, 0) + ' km' : '–';
+        $('simen-proj').textContent = proj != null ? fmtKm(proj, 0) + ' km' : '–';
         var projSub = $('simen-proj-sub');
         if (st.km >= CFG.worldRecordKm) { projSub.textContent = 'NY VERDENSREKORD!'; projSub.className = 'simen-sub record'; }
         else if (proj != null && proj >= CFG.worldRecordKm) { projSub.textContent = 'over VR ' + fmtKm(CFG.worldRecordKm) + ' km'; projSub.className = 'simen-sub record'; }
@@ -453,6 +480,8 @@
     function simulateLap() {
         if (!st.hasData) return;
         demoLaps++; st.laps++; st.km += CFG.lapKm;
+        if (st.lastLapAt != null) st.lastLap = pad2(Math.floor((Date.now() - st.lastLapAt) / 60000)) + ':' + pad2(Math.floor((Date.now() - st.lastLapAt) / 1000) % 60);
+        st.lastLapAt = Date.now();
         renderBanner(); detectEvents();
     }
     function simulateMilestone() {
