@@ -7,6 +7,7 @@
     --src-strompris: #38bdf8;
     --src-nrk: #5b9fd4;
     --src-nrk-sport: #22d3ee;
+    --src-nrk-rogaland: #a3e635;
     --src-e24: #4ade80;
     --src-aftenbladet: #fb923c;
     --src-vg: #f87171;
@@ -115,6 +116,7 @@ body.hide-cursor { cursor: none; }
 }
 .hero-badge.src-nrk { background: var(--src-nrk); color: var(--bg-deep); }
 .hero-badge.src-nrk-sport { background: var(--src-nrk-sport); color: var(--bg-deep); }
+.hero-badge.src-nrk-rogaland { background: var(--src-nrk-rogaland); color: var(--bg-deep); }
 .hero-badge.src-e24 { background: var(--src-e24); color: var(--bg-deep); }
 .hero-badge.src-aftenbladet { background: var(--src-aftenbladet); color: var(--bg-deep); }
 .hero-badge.src-vg { background: var(--src-vg); color: var(--bg-deep); }
@@ -137,6 +139,7 @@ body.hide-cursor { cursor: none; }
 }
 .hero-source.src-nrk { color: var(--src-nrk); }
 .hero-source.src-nrk-sport { color: var(--src-nrk-sport); }
+.hero-source.src-nrk-rogaland { color: var(--src-nrk-rogaland); }
 .hero-source.src-e24 { color: var(--src-e24); }
 .hero-source.src-aftenbladet { color: var(--src-aftenbladet); }
 .hero-source.src-vg { color: var(--src-vg); }
@@ -249,6 +252,7 @@ body.hide-cursor { cursor: none; }
 }
 .article-source.src-nrk, .article-source-overlay.src-nrk { color: var(--src-nrk); }
 .article-source.src-nrk-sport, .article-source-overlay.src-nrk-sport { color: var(--src-nrk-sport); }
+.article-source.src-nrk-rogaland, .article-source-overlay.src-nrk-rogaland { color: var(--src-nrk-rogaland); }
 .article-source.src-e24, .article-source-overlay.src-e24 { color: var(--src-e24); }
 .article-source.src-aftenbladet, .article-source-overlay.src-aftenbladet { color: var(--src-aftenbladet); }
 .article-source.src-vg, .article-source-overlay.src-vg { color: var(--src-vg); }
@@ -274,6 +278,7 @@ body.hide-cursor { cursor: none; }
 .article-latest { border-left: 3px solid var(--accent); }
 .article-latest.src-nrk { border-left-color: var(--src-nrk); }
 .article-latest.src-nrk-sport { border-left-color: var(--src-nrk-sport); }
+.article-latest.src-nrk-rogaland { border-left-color: var(--src-nrk-rogaland); }
 .article-latest.src-e24 { border-left-color: var(--src-e24); }
 .article-latest.src-aftenbladet { border-left-color: var(--src-aftenbladet); }
 .article-latest.src-vg { border-left-color: var(--src-vg); }

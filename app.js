@@ -15,6 +15,7 @@
         feeds: {
             news: 'https://www.nrk.no/toppsaker.rss',
             sport: 'https://www.nrk.no/sport/toppsaker.rss',
+            rogaland: 'https://www.nrk.no/rogaland/toppsaker.rss',
             e24: 'https://e24.no/rss2/',
             aftenbladet: 'https://www.aftenbladet.no/rss',
             vg: 'https://www.vg.no/rss/feed/',
@@ -30,7 +31,7 @@
         tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 14000,
-        heroCount: 8,
+        heroCount: 9,
         weatherLat: 58.97,
         weatherLon: 5.73,
         weatherLocation: 'Stavanger, Norge',
@@ -67,6 +68,7 @@
     var SOURCES = {
         nyheter:     { label: 'NRK',         status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         sport:       { label: 'NRK Sport',   status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
+        rogaland:    { label: 'NRK Rogaland', status: 'pending', refresh: CONFIG.feedRefresh,     proxy: 'rss' },        // direct fetch (NRK sends CORS); rss2json throttles new feeds
         e24:         { label: 'E24',         status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         aftenbladet: { label: 'Aftenbladet', status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         vg:          { label: 'VG',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
@@ -92,6 +94,7 @@
     var FEED_META = {
         news:        { srcKey: 'nyheter',     label: 'NRK',         color: 'src-nrk' },
         sport:       { srcKey: 'sport',       label: 'NRK Sport',   color: 'src-nrk-sport' },
+        rogaland:    { srcKey: 'rogaland',    label: 'NRK Rogaland', color: 'src-nrk-rogaland' },
         e24:         { srcKey: 'e24',         label: 'E24',         color: 'src-e24' },
         aftenbladet: { srcKey: 'aftenbladet', label: 'Aftenbladet', color: 'src-aftenbladet' },
         vg:          { srcKey: 'vg',          label: 'VG',          color: 'src-vg' },
@@ -201,6 +204,29 @@
         }
     }
 
+    // Parse an RSS 2.0 document into the same shape rss2json returns, so loadFeed() can treat both alike.
+    function rssToJson(xml) {
+        var doc = new DOMParser().parseFromString(xml, 'text/xml');
+        if (doc.querySelector('parsererror')) throw new Error('RSS parse error');
+        var items = [];
+        doc.querySelectorAll('item').forEach(function(it) {
+            function txt(tag) { var el = it.getElementsByTagName(tag)[0]; return el ? el.textContent.trim() : ''; }
+            var media = it.getElementsByTagNameNS('*', 'content')[0] || it.getElementsByTagNameNS('*', 'thumbnail')[0];
+            var enclosure = it.getElementsByTagName('enclosure')[0];
+            var cats = [];
+            var catEls = it.getElementsByTagName('category');
+            for (var i = 0; i < catEls.length; i++) cats.push(catEls[i].textContent.trim());
+            items.push({
+                title: txt('title'), link: txt('link'), guid: txt('guid'), description: txt('description'),
+                pubDate: txt('pubDate') || txt('dc:date'),
+                thumbnail: media ? (media.getAttribute('url') || '') : '',
+                enclosure: enclosure ? { link: enclosure.getAttribute('url') || '' } : null,
+                categories: cats,
+            });
+        });
+        return { status: 'ok', items: items };
+    }
+
     async function sourceFetch(sourceKey, url, opts) {
         opts = opts || {};
         var proxy = opts.proxy !== undefined ? opts.proxy : (SOURCES[sourceKey] ? SOURCES[sourceKey].proxy : 'none');
@@ -243,6 +269,9 @@
         var data;
         if (proxy === 'rss2json') {
             data = await doFetch(CONFIG.rssApi + encodeURIComponent(url));
+        } else if (proxy === 'rss') {
+            parse = 'text';
+            data = rssToJson(await doFetch(url));
         } else if (proxy === 'cors') {
             var lastErr = null;
             for (var pi = 0; pi < CONFIG.corsProxies.length; pi++) {
@@ -640,6 +669,18 @@
         }
     }
 
+    // NRK Rogaland overlaps with the national NRK feed: the national feed wins, Rogaland keeps only its own stories.
+    function normLink(u) { return String(u).replace(/^https?:\/\//, '').replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase(); }
+    function dropNrkOverlap(type) {
+        if (type !== 'news' && type !== 'rogaland') return;
+        if (!rawFeeds.news || !rawFeeds.rogaland) return;
+        var national = {};
+        rawFeeds.news.forEach(function(a) { if (a.link) national[a.link] = true; });
+        var before = rawFeeds.rogaland.length;
+        rawFeeds.rogaland = rawFeeds.rogaland.filter(function(a) { return !national[a.link]; });
+        if (rawFeeds.rogaland.length !== before) console.log('[NRK Rogaland] ' + (before - rawFeeds.rogaland.length) + ' duplicates of NRK dropped');
+    }
+
     async function loadFeed(type) {
         var meta = FEED_META[type];
         var srcKey = meta ? meta.srcKey : type;
@@ -661,8 +702,10 @@
                     image: image,
                     source: type,
                     categories: cats,
+                    link: normLink(item.link || item.guid || ''),
                 };
             }).filter(function(a) { return a.title; });
+            dropNrkOverlap(type);
             console.log('[' + (meta ? meta.label : type) + '] rss2json \u2192 ' + rawFeeds[type].length + ' items');
             mergeFeedsAndRender();
             setSource(srcKey, 'ok');
