@@ -1372,6 +1372,27 @@
         return '<span class="fin-chg ' + (pct > 0 ? 'up' : 'down') + '">' + arrow + Math.abs(pct).toFixed(1) + '%</span>';
     }
 
+    // Energy-company staples next to the currencies: Brent crude and Equinor, from Yahoo's chart API via the proxies.
+    var YAHOO_QUOTES = [
+        { symbol: 'BZ=F',    label: 'Brent USD',   decimals: 2 },
+        { symbol: 'EQNR.OL', label: 'Equinor NOK', decimals: 1 },
+    ];
+    async function loadYahooQuote(q) {
+        var url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(q.symbol) + '?range=5d&interval=1d';
+        var data = await sourceFetch('marked', url, { proxy: 'cors', skipStatus: true, cacheKey: 'dev:yahoo:' + q.symbol });
+        var res = data && data.chart && data.chart.result && data.chart.result[0];
+        if (!res || !res.meta || res.meta.regularMarketPrice == null) throw new Error(q.symbol + ' no quote');
+        var price = res.meta.regularMarketPrice;
+        var pct = res.meta.regularMarketChangePercent;
+        if (pct == null) {
+            var closes = ((res.indicators && res.indicators.quote && res.indicators.quote[0] && res.indicators.quote[0].close) || [])
+                .filter(function(v) { return v != null; });
+            var prev = closes.length >= 2 ? closes[closes.length - 2] : null;
+            pct = prev ? (price - prev) / prev * 100 : 0;
+        }
+        return { label: q.label, value: Number(price).toFixed(q.decimals), change: pct };
+    }
+
     async function loadFinancialData() {
         try {
             var nbUrl = 'https://data.norges-bank.no/api/data/EXR/B.USD+EUR+GBP.NOK.SP?format=sdmx-json&lastNObservations=2';
@@ -1405,7 +1426,6 @@
             if (rates.GBP) tkFinancial.push({ label: 'GBP/NOK', value: Number(rates.GBP.value).toFixed(2), change: rates.GBP.change });
 
             console.log('[' + SOURCES.marked.label + '] norges-bank.no \u2192 ' + tkFinancial.length + ' items');
-            buildTickerContent();
             setSource('marked', 'ok');
         } catch (e) {
             console.log('[' + SOURCES.marked.label + '] norges-bank.no \u2192 ERROR ' + e.message);
@@ -1415,8 +1435,15 @@
                 { label: 'EUR/NOK', value: '\u2013', change: 0 },
                 { label: 'GBP/NOK', value: '\u2013', change: 0 },
             ];
-            buildTickerContent();
         }
+        var quotes = await Promise.allSettled(YAHOO_QUOTES.map(loadYahooQuote));
+        quotes.forEach(function(r, i) {
+            if (r.status === 'fulfilled') tkFinancial.push(r.value);
+            else console.log('[' + SOURCES.marked.label + '] yahoo ' + YAHOO_QUOTES[i].symbol + ' \u2192 ERROR ' + (r.reason && r.reason.message || r.reason));
+        });
+        var ok = quotes.filter(function(r) { return r.status === 'fulfilled'; }).length;
+        if (ok) console.log('[' + SOURCES.marked.label + '] yahoo \u2192 ' + ok + ' quotes');
+        buildTickerContent();
     }
 
     // Stagger finance (after feeds finish)
