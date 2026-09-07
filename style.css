@@ -536,15 +536,15 @@ body.hide-cursor { cursor: none; }
     animation: events-drift linear infinite;
     will-change: transform;
 }
-.events-sep {
+.events-sep, .bus-sep {
     display: flex; align-items: center; justify-content: center;
     gap: 6px; padding: 8px 0;
 }
-.events-sep span {
+.events-sep span, .bus-sep span {
     width: 4px; height: 4px; border-radius: 50%;
     background: var(--text-dim); opacity: 0.4;
 }
-.events-list::after {
+.events-list::after, .bus-list::after {
     content: ''; display: block;
     position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
     width: 60%; height: 2px; border-radius: 1px;
@@ -552,7 +552,7 @@ body.hide-cursor { cursor: none; }
     opacity: 0;
     transition: opacity 0.4s;
 }
-.events-list.peek::after {
+.events-list.peek::after, .bus-list.peek::after {
     animation: sep-glow 1.8s ease-in-out infinite;
 }
 @keyframes sep-glow {
@@ -604,15 +604,18 @@ body.hide-cursor { cursor: none; }
     font-family: var(--font-display); letter-spacing: var(--display-spacing); margin-bottom: 4px;
 }
 .bus-stop-name::before { content: '\1F68F  '; }
-/* Card stretches to fill the sidebar; rows that don't fully fit are hidden by fitBusRows() */
+/* Card stretches to fill the sidebar. When the rows overflow, the list drifts like the events
+   widget (.bus-scroll gets .scrolling + duplicated content; see layoutBusList in app.js). */
 .bus-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.bus-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow: hidden; }
+.bus-list { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.bus-scroll { display: flex; flex-direction: column; will-change: transform; }
+.bus-scroll.scrolling { animation: bus-drift linear infinite; }
+.bus-copy { display: flex; flex-direction: column; gap: 4px; }
 .bus-item {
     display: flex; align-items: center; gap: 10px;
     padding: 5px 0;
 }
 .bus-item + .bus-item { border-top: 1px solid var(--border); }
-.bus-item.bus-overflow { display: none; }
 .bus-line {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.85rem; font-weight: var(--display-weight);
     background: var(--accent); color: var(--bg-deep);

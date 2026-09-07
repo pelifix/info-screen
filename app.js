@@ -1007,42 +1007,74 @@
         return String(dep.getHours()).padStart(2, '0') + ':' + String(dep.getMinutes()).padStart(2, '0');
     }
 
+    // The .bus-scroll track is persistent so the drift animation survives the 45s re-renders;
+    // only the rows inside it are replaced. Pacing matches the events widget (20s pause, 4s/row).
+    var busTrack = null;
+    var busRowsHtml = '';
+    var busPulseTimer = null;
+    var BUS_PAUSE = 20;
+    var BUS_CYCLE = BUS_PAUSE + CONFIG.busDepartures * 4;
+    var BUS_SEP = '<div class="bus-sep"><span></span><span></span><span></span></div>';
+    (function() {
+        var style = document.createElement('style');
+        style.textContent = '@keyframes bus-drift{0%,' + (BUS_PAUSE / BUS_CYCLE * 100).toFixed(1) + '%{transform:translate3d(0,0,0)}100%{transform:translate3d(0,-50%,0)}}';
+        document.head.appendChild(style);
+    })();
+
     function renderBusDepartures(calls) {
-        busEl.innerHTML = '';
         if (!calls.length) {
+            setBusScrolling(false);
+            busTrack = null;
             busEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen avganger</div>';
             return;
         }
-        calls.forEach(function(c) {
+        busRowsHtml = calls.map(function(c) {
             var line = c.serviceJourney.line.publicCode;
             var dest = c.destinationDisplay.frontText;
             var timeStr = formatBusTime(c.expectedDepartureTime);
             var isRt = c.realtime;
-            var div = document.createElement('div');
-            div.className = 'bus-item';
-            div.innerHTML =
+            return '<div class="bus-item">' +
                 '<div class="bus-line">' + escapeHtml(line) + '</div>' +
                 '<div class="bus-dest">' + escapeHtml(dest) + '</div>' +
-                '<div class="bus-time">' + (isRt ? '<span class="bus-rt"></span>' : '') + timeStr + '</div>';
-            busEl.appendChild(div);
-        });
-        fitBusRows();
+                '<div class="bus-time">' + (isRt ? '<span class="bus-rt"></span>' : '') + timeStr + '</div>' +
+                '</div>';
+        }).join('');
+        if (!busTrack) {
+            busEl.innerHTML = '<div class="bus-scroll"><div class="bus-copy"></div></div>';
+            busTrack = busEl.firstChild;
+        }
+        var copies = busTrack.querySelectorAll('.bus-copy');
+        for (var i = 0; i < copies.length; i++) copies[i].innerHTML = busRowsHtml;
+        layoutBusList();
     }
 
-    // Hide trailing rows that don't fully fit in the list (sidebar is overflow:hidden with a
-    // 60px fade at the bottom; BUS_FADE_PX keeps the last visible row clear of most of it).
-    var BUS_FADE_PX = 30;
-    function fitBusRows() {
-        var rows = busEl.querySelectorAll('.bus-item');
-        if (!rows.length) return;
-        for (var i = 0; i < rows.length; i++) rows[i].classList.remove('bus-overflow');
-        var limit = busEl.getBoundingClientRect().bottom - BUS_FADE_PX;
-        for (var j = rows.length - 1; j > 0; j--) {
-            if (rows[j].getBoundingClientRect().bottom > limit) rows[j].classList.add('bus-overflow');
-            else break;
-        }
+    // Static when one copy fits the viewport, drifting (duplicated content) when it doesn't.
+    // Re-run on resize: the viewport shrinks/grows as the events card above changes height.
+    function layoutBusList() {
+        if (!busTrack) return;
+        setBusScrolling(busTrack.firstChild.offsetHeight > busEl.clientHeight + 1);
     }
-    if (window.ResizeObserver) new ResizeObserver(fitBusRows).observe(busEl);
+
+    function setBusScrolling(on) {
+        var isOn = !!(busTrack && busTrack.classList.contains('scrolling'));
+        if (on === isOn) return;
+        if (busPulseTimer) { clearInterval(busPulseTimer); busPulseTimer = null; }
+        busEl.classList.remove('peek');
+        if (!on) {
+            busTrack.classList.remove('scrolling');
+            while (busTrack.children.length > 1) busTrack.removeChild(busTrack.lastChild);
+            return;
+        }
+        busTrack.insertAdjacentHTML('beforeend', BUS_SEP + '<div class="bus-copy">' + busRowsHtml + '</div>' + BUS_SEP);
+        busTrack.style.animationDuration = BUS_CYCLE + 's';
+        busTrack.classList.add('scrolling');
+        // Glow line at the bottom pulses during the pause window, like the events widget
+        var start = Date.now();
+        busPulseTimer = setInterval(function() {
+            busEl.classList.toggle('peek', (Date.now() - start) % (BUS_CYCLE * 1000) < BUS_PAUSE * 1000);
+        }, 500);
+    }
+    if (window.ResizeObserver) new ResizeObserver(layoutBusList).observe(busEl);
 
     async function loadBusDepartures() {
         try {
