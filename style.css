@@ -604,12 +604,15 @@ body.hide-cursor { cursor: none; }
     font-family: var(--font-display); letter-spacing: var(--display-spacing); margin-bottom: 4px;
 }
 .bus-stop-name::before { content: '\1F68F  '; }
-.bus-list { display: flex; flex-direction: column; gap: 4px; }
+/* Card stretches to fill the sidebar; rows that don't fully fit are hidden by fitBusRows() */
+.bus-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bus-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow: hidden; }
 .bus-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 5px 0; border-bottom: 1px solid var(--border);
+    padding: 5px 0;
 }
-.bus-item:last-child { border-bottom: none; }
+.bus-item + .bus-item { border-top: 1px solid var(--border); }
+.bus-item.bus-overflow { display: none; }
 .bus-line {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.85rem; font-weight: var(--display-weight);
     background: var(--accent); color: var(--bg-deep);

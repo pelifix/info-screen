@@ -40,9 +40,9 @@
             { src: 'https://www.yr.no/webcams/8/2000/1578993455.jpg', caption: 'Stavanger \u2014 V\u00e5gen' },
             { src: 'https://www.yr.no/webcams/8/2000/1656509673.jpg', caption: 'Stavanger \u2014 havn' },
         ],
-        busStop: 'NSR:StopPlace:26354',
-        busStopName: 'Vestre Svanholmen',
-        busDepartures: 5,
+        busStop: 'NSR:StopPlace:27727',
+        busStopName: 'Koppholen',
+        busDepartures: 8,
         busRefresh: 45 * 1000,
         bikeStations: ['YKO:Station:190', 'YKO:Station:192'],
         bikeRefresh: 60 * 1000,
@@ -1026,7 +1026,23 @@
                 '<div class="bus-time">' + (isRt ? '<span class="bus-rt"></span>' : '') + timeStr + '</div>';
             busEl.appendChild(div);
         });
+        fitBusRows();
     }
+
+    // Hide trailing rows that don't fully fit in the list (sidebar is overflow:hidden with a
+    // 60px fade at the bottom; BUS_FADE_PX keeps the last visible row clear of most of it).
+    var BUS_FADE_PX = 30;
+    function fitBusRows() {
+        var rows = busEl.querySelectorAll('.bus-item');
+        if (!rows.length) return;
+        for (var i = 0; i < rows.length; i++) rows[i].classList.remove('bus-overflow');
+        var limit = busEl.getBoundingClientRect().bottom - BUS_FADE_PX;
+        for (var j = rows.length - 1; j > 0; j--) {
+            if (rows[j].getBoundingClientRect().bottom > limit) rows[j].classList.add('bus-overflow');
+            else break;
+        }
+    }
+    if (window.ResizeObserver) new ResizeObserver(fitBusRows).observe(busEl);
 
     async function loadBusDepartures() {
         try {
