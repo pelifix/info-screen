@@ -84,6 +84,7 @@
         konserthus:  { label: 'Konserthus',  status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         folken:      { label: 'Folken',      status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'cors' },
+        simen:       { label: 'Simen',       status: 'pending', refresh: 60 * 1000,               proxy: 'cors' },   // see simen.js
     };
 
     var preRefreshTimers = {};
@@ -721,6 +722,7 @@
     }
 
     function cycleSlide() {
+        if (window.InfoScreen && window.InfoScreen.pauseSlideshow) return;   // slot taken over (simen.js)
         if (slideImages.length <= 1) return;
         var slides = diEl.querySelectorAll('.di-slide');
         var dots = diEl.querySelectorAll('.di-dot');
@@ -1275,6 +1277,15 @@
                 var bikeLabel = bikeCountState.todayTotal ? 'i dag' : 'forrige uke';
                 p.push('<span class="tk-data-item tk-bike"><span class="tk-data-val">' + bikeVal + '</span><span class="tk-data-meta"><span class="tk-data-label">' + bikeLabel + '</span><span class="tk-data-unit">M\u00f8llebukta</span></span></span>');
                 return p.join('');
+            });
+        }
+
+        // Blocks registered by add-on scripts (simen.js etc.)
+        if (window.InfoScreen) {
+            window.InfoScreen.tickerBlocks.forEach(function(fn) {
+                var h = '';
+                try { h = fn(); } catch (e) { /* ignore broken block */ }
+                if (h) dataBlocks.push(function() { return h; });
             });
         }
 
@@ -2083,6 +2094,19 @@
             document.body.classList.add('hide-cursor');
         }, 3000);
     });
+
+    /* ═══ PUBLIC API for add-on scripts (celebration.js / simen.js) ═══ */
+    window.InfoScreen = {
+        CONFIG: CONFIG,
+        SOURCES: SOURCES,
+        sourceFetch: sourceFetch,
+        setSource: setSource,
+        escapeHtml: escapeHtml,
+        buildSparklineSvg: buildSparklineSvg,
+        tickerBlocks: [],                 // functions returning ticker HTML (or '')
+        rebuildTicker: scheduleTickerRebuild,
+        pauseSlideshow: false,            // set true to freeze the sidebar image slot
+    };
 
     /* ═══ LOADING ═══ */
     window.addEventListener('load', function() {

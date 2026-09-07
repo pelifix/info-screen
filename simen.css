@@ -1,0 +1,164 @@
+/* ═══ SIMEN LIVE — EMU 6-Day Race tracker (temporary, Sept 2026) + celebration ═══ */
+:root {
+    --nor-red: #ef2b2d;
+    --nor-blue: #3b6fd4;
+    --nor-white: #f4f4f4;
+    --gold: #ffd166;
+}
+
+.celebration-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9000; }
+
+/* ── Banner between hero and feed ── */
+.simen-banner {
+    position: relative; flex: none; height: 98px; margin: 0 5px 8px 5px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    display: flex; align-items: stretch; overflow: hidden;
+    transition: border-color 0.5s ease;
+}
+.simen-banner::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 1;
+    background: linear-gradient(to bottom, var(--nor-red) 0 38%, var(--nor-white) 38% 62%, var(--nor-blue) 62% 100%);
+}
+/* Cells never shrink (so text can't overlap); the clock cell absorbs leftover width */
+.simen-cell {
+    flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center;
+    padding: 0 14px; border-right: 1px solid var(--border);
+}
+.simen-cell:last-child { border-right: none; }
+.simen-cell.grow { flex: 1 0 auto; }
+.simen-label {
+    font-family: var(--font-display); font-weight: var(--display-weight); font-size: 0.62rem;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--text-secondary);
+    margin-bottom: 5px; white-space: nowrap;
+}
+.simen-value {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.75rem; line-height: 1;
+    letter-spacing: var(--display-spacing); color: var(--text-primary); white-space: nowrap;
+}
+.simen-value small { font-size: 0.85rem; font-weight: var(--display-weight); color: var(--text-secondary); margin-left: 4px; }
+.simen-sub { font-size: 0.76rem; color: var(--text-secondary); margin-top: 5px; white-space: nowrap; }
+.simen-sub .rest { color: var(--nor-blue); font-weight: 700; letter-spacing: 1px; }
+
+/* identity */
+.simen-id { flex-direction: row; align-items: center; gap: 12px; padding-left: 20px; }
+.simen-flag svg { display: block; width: 44px; height: 32px; border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+.simen-name {
+    font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; line-height: 1.05;
+    letter-spacing: 1px; text-transform: uppercase; color: var(--text-primary); white-space: nowrap;
+    display: flex; align-items: center; gap: 10px;
+}
+.simen-event { font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; letter-spacing: 0.4px; white-space: nowrap; }
+.simen-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.6rem; letter-spacing: 2px; color: var(--nor-red);
+}
+.simen-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--nor-red); animation: pulse-dot 1.4s ease-in-out infinite; }
+.simen-pos {
+    font-family: var(--font-display); font-weight: 800; font-size: 1rem; letter-spacing: 2px; white-space: nowrap;
+    padding: 8px 12px; border-radius: 6px; background: var(--gold); color: var(--bg-deep);
+    box-shadow: 0 0 18px rgba(255,209,102,0.35); animation: pos-glow 2.4s ease-in-out infinite;
+}
+.simen-pos.not-leading { background: var(--bg-deep); color: var(--text-primary); border: 1px solid var(--border); box-shadow: none; animation: none; }
+@keyframes pos-glow { 0%, 100% { box-shadow: 0 0 12px rgba(255,209,102,0.25); } 50% { box-shadow: 0 0 28px rgba(255,209,102,0.6); } }
+
+/* distance */
+.simen-km .simen-value { font-size: 2.9rem; font-weight: 800; color: var(--accent); display: inline-block; transform-origin: left center; }
+.simen-km .simen-value small { font-size: 1.1rem; color: var(--accent); opacity: 0.7; }
+.simen-km .simen-value.bump { animation: km-bump 0.9s ease; }
+@keyframes km-bump { 0% { transform: scale(1); } 30% { transform: scale(1.15); color: #fff; } 100% { transform: scale(1); } }
+
+/* gap */
+.simen-gap .simen-value.up { color: #4ade80; }
+.simen-gap .simen-value.down { color: #f87171; }
+
+/* race clock */
+.simen-clock .simen-value { font-variant-numeric: tabular-nums; }
+.simen-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; margin: 7px 0 0; }
+.simen-bar > div { height: 100%; border-radius: 3px; width: 0; background: linear-gradient(90deg, var(--nor-blue), var(--nor-red)); transition: width 1s linear; }
+
+/* km per day bars */
+.simen-days { display: flex; gap: 4px; align-items: flex-end; height: 46px; }
+.simen-days > div { width: 21px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.simen-days .bar { width: 100%; border-radius: 3px 3px 0 0; background: var(--nor-blue); opacity: 0.9; min-height: 2px; }
+.simen-days .today .bar { background: var(--accent); }
+.simen-days .future .bar { background: rgba(255,255,255,0.06); }
+.simen-days .val { font-size: 0.58rem; color: var(--text-secondary); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.simen-days .today .val { color: var(--accent); }
+
+/* projection */
+.simen-proj .simen-sub.record { color: var(--gold); font-weight: 700; letter-spacing: 1px; }
+
+/* ── Video: fixed box over the sidebar slot; on celebrations it expands over the hero ──
+   Layout inside the box is driven by two CSS vars set from JS:
+   --pw = player width (100% normally, height*16/9 when big), --sl = stamp left edge (0 or --pw). */
+.daily-img-widget.video-takeover > * { visibility: hidden; }
+.simen-video {
+    position: fixed; z-index: 50; background: #000; overflow: hidden;
+    border-radius: var(--radius); border: 1px solid var(--border);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.55);
+    --pw: 100%; --sl: 0px;
+    transition: top 0.7s cubic-bezier(0.4,0,0.2,1), left 0.7s cubic-bezier(0.4,0,0.2,1),
+                width 0.7s cubic-bezier(0.4,0,0.2,1), height 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+.simen-video.no-anim { transition: none; }
+.simen-video.big { background: radial-gradient(ellipse at 75% 50%, #232838, var(--bg-card) 70%); }
+.simen-player-box { position: absolute; top: 0; left: 0; bottom: 0; width: var(--pw); background: #000; }
+.simen-player-box iframe, .simen-player-box .simen-video-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.simen-video.video-error .simen-player-box iframe, .simen-video.video-error .simen-video-player { visibility: hidden; }
+.simen-video-fallback {
+    position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: radial-gradient(ellipse at center, #1a1e28, #08090c); color: var(--text-secondary);
+    font-family: var(--font-display); letter-spacing: 2px; font-size: 0.9rem;
+}
+.simen-video.video-error .simen-video-fallback { display: flex; }
+.simen-video-fallback .emoji { font-size: 3rem; letter-spacing: 0; }
+.simen-video-fallback .dim { font-size: 0.7rem; opacity: 0.6; letter-spacing: 0.5px; }
+.simen-video-tag { position: absolute; top: 10px; left: 10px; z-index: 3; }
+.simen-video-tag .simen-live { background: rgba(0,0,0,0.55); padding: 5px 10px; border-radius: 6px; color: #fff; }
+.simen-video-caption {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+    padding: 18px 12px 8px; background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+    font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.5px; color: rgba(255,255,255,0.8);
+}
+.simen-video.big .simen-video-caption { font-size: 1rem; padding: 36px 16px 12px; }
+.simen-video.big .simen-video-tag .simen-live { font-size: 0.8rem; padding: 7px 14px; }
+
+/* stamp: over the video when small, on the panel to the right of the video when big */
+.simen-stamp {
+    position: absolute; top: 0; bottom: 0; right: 0; left: var(--sl); z-index: 4; pointer-events: none; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 0 24px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,0.5) 100%);
+}
+.simen-video.big .simen-stamp { background: none; }
+.simen-stamp[hidden] { display: none; }
+.simen-stamp-title {
+    font-family: var(--font-display); font-weight: 900; font-size: 5.6rem; letter-spacing: 5px; color: #fff; line-height: 1; white-space: nowrap;
+    text-shadow: 0 4px 30px rgba(0,0,0,0.9), 0 0 40px rgba(232,168,62,0.5);
+    transform: scale(3) rotate(-8deg); opacity: 0;
+    animation: stamp-in 0.6s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+.simen-stamp-sub {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; letter-spacing: 3px; color: var(--gold); white-space: nowrap;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.9); opacity: 0;
+    animation: stamp-in 0.6s 0.25s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+.simen-stamp-sub2 {
+    font-family: var(--font-display); font-weight: var(--display-weight); font-size: 1.1rem; letter-spacing: 2px; color: var(--text-secondary); white-space: nowrap;
+    opacity: 0; animation: stamp-in 0.6s 0.45s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+.simen-stamp.gold .simen-stamp-title { color: var(--gold); text-shadow: 0 4px 30px rgba(0,0,0,0.9), 0 0 60px rgba(255,209,102,0.7); }
+@keyframes stamp-in { to { transform: scale(1) rotate(-3deg); opacity: 1; } }
+.simen-video:not(.big) .simen-stamp-title { font-size: 2rem; letter-spacing: 3px; }
+.simen-video:not(.big) .simen-stamp-sub { font-size: 0.85rem; letter-spacing: 2px; }
+.simen-video:not(.big) .simen-stamp-sub2 { display: none; }
+
+/* banner glow during celebrations */
+.simen-banner.celebrate { border-color: rgba(232,168,62,0.7); animation: simen-glow 1.6s ease-in-out infinite; }
+.simen-banner.celebrate.gold { border-color: var(--gold); animation: simen-glow-gold 1.6s ease-in-out infinite; }
+@keyframes simen-glow { 0%, 100% { box-shadow: 0 0 18px rgba(232,168,62,0.15); } 50% { box-shadow: 0 0 46px rgba(232,168,62,0.45); } }
+@keyframes simen-glow-gold { 0%, 100% { box-shadow: 0 0 24px rgba(255,209,102,0.25); } 50% { box-shadow: 0 0 70px rgba(255,209,102,0.6); } }
+
+/* ticker block */
+.ticker-content .tk-data-item.tk-simen { color: var(--accent); }
+.ticker-content .tk-simen-flag { display: inline-flex; align-items: center; margin-right: 8px; align-self: center; }
+.ticker-content .tk-simen-flag svg { display: block; width: 26px; height: 19px; border-radius: 2px; }
