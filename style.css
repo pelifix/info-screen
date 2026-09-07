@@ -127,8 +127,9 @@ body.hide-cursor { cursor: none; }
 
 .hero-text {
     display: flex; flex-direction: column;
-    justify-content: flex-start; gap: 8px; min-width: 0;
-    min-height: 0; overflow: hidden; padding-top: 24px;
+    justify-content: center; gap: 14px; min-width: 0;
+    min-height: 0; overflow: hidden;
+    padding: 30px 28px 42px 14px;   /* top clears the tabs bar, bottom leaves room for the meta line */
 }
 .hero-source {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.9rem; font-weight: var(--display-weight);
@@ -155,16 +156,23 @@ body.hide-cursor { cursor: none; }
 }
 
 .hero-title {
-    font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 2.5rem; font-weight: var(--display-weight);
+    flex: none;                                        /* never shrinks: the summary gives way instead */
+    font-family: var(--font-display); letter-spacing: -0.3px; font-size: 2.5rem; font-weight: 700;
     line-height: 1.2; color: var(--text-primary);
     display: -webkit-box; -webkit-line-clamp: 3;
     -webkit-box-orient: vertical; overflow: hidden;
 }
 .hero-desc {
-    font-size: 1.6rem; line-height: 1.5; color: var(--text-secondary);
-    flex: 1; min-height: 0; overflow: hidden;
+    position: relative; font-size: 1.6rem; line-height: 1.5; color: var(--text-secondary);
+    flex: 0 1 auto; min-height: 0; overflow: hidden;
+    max-width: 62ch;                                  /* readable measure instead of running the full width */
+    padding-left: 18px; border-left: 3px solid var(--hero-src, var(--accent));
 }
-.hero-time { font-size: 1rem; color: var(--text-dim); margin-top: auto; text-align: right; }
+.hero-desc.clipped::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.4em; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(26,30,40,0), var(--bg-card) 85%);
+}
+.hero-time { position: absolute; right: 26px; bottom: 16px; font-size: 1rem; color: var(--text-dim); }
 
 .hero-divider { display: none; }
 .hero-tabs-bar {

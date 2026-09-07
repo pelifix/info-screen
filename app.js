@@ -389,7 +389,7 @@
                 '<div class="' + topBadgeClass + '">' + topBadgeText + '</div></div>' +
                 imgContent +
             '</div>' +
-            '<div class="hero-text">' +
+            '<div class="hero-text"' + (colorClass ? ' style="--hero-src: var(--' + colorClass + ')"' : '') + '>' +
                 '<div class="hero-title">' + escapeHtml(item.title) + '</div>' +
                 (item.descHtml ? '<div class="hero-desc">' + item.descHtml + '</div>' : item.desc ? '<div class="hero-desc">' + escapeHtml(item.desc) + '</div>' : '') +
                 '<div class="hero-time">' + formatTimeCats(item) + '</div>' +
@@ -402,17 +402,18 @@
         heroEl.insertBefore(newCard, heroEl.querySelector('.hero-divider'));
         void newCard.offsetWidth;
 
-        // Dynamically shrink hero description font if text overflows
+        // Shrink the hero description a little if it overflows, but keep it readable from across the room;
+        // whatever still doesn't fit fades out at the bottom instead of being cut mid-line.
         var heroDesc = newCard.querySelector('.hero-desc');
         if (heroDesc) {
             var fontSize = 1.6;
-            var minSize = 0.95;
+            var minSize = 1.3;
             var step = 0.05;
-            while (fontSize > minSize && heroDesc.scrollHeight > heroDesc.clientHeight) {
+            while (fontSize > minSize && heroDesc.scrollHeight > heroDesc.clientHeight + 2) {
                 fontSize -= step;
                 heroDesc.style.fontSize = fontSize + 'rem';
-                heroDesc.style.lineHeight = String(1.35 + (fontSize - minSize) * 0.375);
             }
+            if (heroDesc.scrollHeight > heroDesc.clientHeight + 2) heroDesc.classList.add('clipped');
         }
 
         newCard.classList.add('active');
