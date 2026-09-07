@@ -805,6 +805,7 @@ body.hide-cursor { cursor: none; }
 .ticker-content .tk-data-item.tk-traffic { color: var(--src-trafikk); }
 .ticker-content .tk-data-item.tk-bike { color: var(--src-sykkel); }
 .ticker-content .tk-data-item.tk-magasin { color: var(--src-magasin); }
+.ticker-content .tk-data-item.tk-parking { color: #93c5fd; }
 .ticker-content .tk-data-val {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-weight: var(--display-weight);
     font-size: 1.5rem;

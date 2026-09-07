@@ -91,6 +91,7 @@
         dnbarena:    { label: 'DNB Arena',   status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         forum:       { label: 'Forum',       status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'cors' },
+        parkering:   { label: 'Parkering',   status: 'pending', refresh: 5 * 60 * 1000,           proxy: 'cors' },       // Stavanger open data, live garage counts
         simen:       { label: 'Simen',       status: 'pending', refresh: 60 * 1000,               proxy: 'cors' },   // see simen.js
     };
 
@@ -1471,6 +1472,15 @@
             });
         }
 
+        if (parkingState.garages.length) {
+            dataBlocks.push(function() {
+                return parkingState.garages.map(function(g) {
+                    return '<span class="tk-data-item tk-parking"><span class="tk-data-val">' + g.free + '</span>' +
+                        '<span class="tk-data-meta"><span class="tk-data-label">🅿 ' + escapeHtml(g.name) + '</span><span class="tk-data-unit">ledige</span></span></span>';
+                }).join('');
+            });
+        }
+
         // Blocks registered by add-on scripts (simen.js etc.)
         if (window.InfoScreen) {
             window.InfoScreen.tickerBlocks.forEach(function(fn) {
@@ -1862,6 +1872,37 @@
     }
     setTimeout(loadMagasin, 28000);
     setInterval(loadMagasin, SOURCES.magasin.refresh);
+
+    /* ═══ PARKING (Stavanger open data: free spaces in city-centre garages, refreshed every few minutes) ═══ */
+    var parkingState = { garages: [], at: '' };
+    var PARKING_URL = 'https://opencom.no/dataset/36ceda99-bbc3-4909-bc52-b05a6d634b3f/resource/d1bdc6eb-9b49-4f24-89c2-ab9f5ce2acce/download/parking.json';
+    var PARKING_PREF = ['Jernbanen', 'Valberget', 'Forum', 'Kyrre', 'St Olav', 'Siddis', 'Jorenholmen', 'Parketten', 'Posten'];
+    async function loadParking() {
+        try {
+            var data = await sourceFetch('parkering', PARKING_URL, { skipStatus: true });
+            if (!Array.isArray(data)) throw new Error('unexpected shape');
+            var byName = {};
+            data.forEach(function(g) { if (g && g.Sted) byName[String(g.Sted).trim()] = g; });
+            var picked = [];
+            PARKING_PREF.forEach(function(name) {
+                var g = byName[name];
+                if (!g || picked.length >= 4) return;
+                var n = parseInt(String(g.Antall_ledige_plasser).replace(/\D/g, ''), 10);
+                if (isNaN(n)) return;                                   // "Open" = no live count for that garage
+                picked.push({ name: name, free: n });
+            });
+            if (!picked.length) throw new Error('no garages with counts');
+            parkingState = { garages: picked, at: data[0].Klokkeslett || '' };
+            console.log('[' + SOURCES.parkering.label + '] opencom.no → ' + picked.map(function(g) { return g.name + ' ' + g.free; }).join(', '));
+            scheduleTickerRebuild();
+            setSource('parkering', 'ok');
+        } catch (e) {
+            console.log('[' + SOURCES.parkering.label + '] opencom.no → ERROR ' + e.message);
+            setSource('parkering', 'error');
+        }
+    }
+    setTimeout(loadParking, 32000);
+    setInterval(loadParking, SOURCES.parkering.refresh);
 
     /* ═══ E39 TRAFFIC ═══ */
     var trafficHours = [];
