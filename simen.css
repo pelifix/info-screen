@@ -19,16 +19,21 @@
     display: flex; align-items: stretch; overflow: hidden;
     transition: border-color 0.5s ease;
 }
-.simen-banner::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; z-index: 1;
-    background: linear-gradient(to bottom, var(--nor-red) 0 38%, var(--nor-white) 38% 62%, var(--nor-blue) 62% 100%);
+.simen-banner::before, .simen-banner::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 6px; z-index: 1;
+    /* hoist edge of the Norwegian flag, top to bottom: red 6 · white 1 · blue 2 · white 1 · red 6 */
+    background: linear-gradient(to bottom,
+        var(--nor-red) 0 37.5%, var(--nor-white) 37.5% 43.75%, var(--nor-blue) 43.75% 56.25%,
+        var(--nor-white) 56.25% 62.5%, var(--nor-red) 62.5% 100%);
 }
+.simen-banner::before { left: 0; }
+.simen-banner::after { right: 0; }
 /* Cells never shrink (so text can't overlap); the clock cell absorbs leftover width */
 .simen-cell {
     flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center;
     padding: 0 11px; border-right: 1px solid var(--border);
 }
-.simen-cell:last-child { border-right: none; }
+.simen-cell:last-child { border-right: none; padding-right: 17px; }   /* room for the right-hand flag stripe */
 .simen-cell.grow { flex: 1 0 auto; }
 .simen-label {
     font-family: var(--font-display); font-weight: var(--display-weight); font-size: 0.62rem;
