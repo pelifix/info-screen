@@ -659,7 +659,7 @@ body.hide-cursor { cursor: none; }
     background: #4ade80; margin-right: 3px; vertical-align: middle;
 }
 
-/* The bottom card alternates between the bus list and flights at Sola (see loadFlights in app.js).
+/* The bottom card alternates between the bus list and flights at Sola, arrivals and departures in one list (see loadFlights in app.js).
    Both blocks sit on top of each other inside the card; the one leaving slides out left while the next slides in
    from the right (same motion as the hero cards). Blocks are moved, not hidden, so the bus list keeps scrolling. */
 .bus-block, .fly-block {
@@ -671,13 +671,13 @@ body.hide-cursor { cursor: none; }
 .bus-block.leaving, .fly-block.leaving { transform: translateX(-110%); opacity: 0; }
 /* Queue indicator for the bottom card (bus → departures → arrivals): same tabs as the hero, active first with a
    fill running down the remaining time, then the upcoming blocks in order. Only shown once flights have loaded. */
-.card-tabs { position: absolute; top: 7px; right: 12px; width: 262px; display: none; align-items: center; gap: 4px; z-index: 3; }
-.card-tabs .hero-tab { flex: 1 1 auto; padding: 3px 5px; font-size: 0.56rem; letter-spacing: 0.3px; }   /* sized to the text so "Fly ankomster" fits */
+.card-tabs { position: absolute; top: 7px; right: 12px; display: none; align-items: center; gap: 4px; z-index: 3; }
+.card-tabs .hero-tab { flex: 0 0 auto; padding: 3px 8px; }   /* sized to the text */
+.bus-card .widget-label { white-space: nowrap; }
 .bus-card.has-tabs .card-tabs { display: flex; }
-.bus-card.has-tabs .widget-label-line { margin-right: 270px; }
+.bus-card.has-tabs .widget-label-line { margin-right: 128px; }
 .fly-airport::before { content: '\2708\FE0F  '; }
-.fly-airport.dep::before { content: '\1F6EB  '; }   /* airplane departure */
-.fly-airport.arr::before { content: '\1F6EC  '; }   /* airplane arrival */
+.fly-dir { width: 22px; flex: none; text-align: center; font-size: 0.9rem; line-height: 1; }   /* taking-off / landing plane per row */
 .fly-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 .fly-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .fly-item + .fly-item { border-top: 1px solid var(--border); }
