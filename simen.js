@@ -306,7 +306,7 @@
         video.innerHTML =
             '<div class="simen-player-box">' +
                 '<div class="simen-video-player" id="simen-yt"></div>' +
-                '<div class="simen-video-fallback"><div class="emoji">🏃</div><div>SIMEN LIVE</div><div class="dim">videostrøm ikke tilgjengelig</div></div>' +
+                '<div class="simen-video-fallback"><div class="emoji">🏃</div><div>SIMEN LIVE</div><div class="dim" id="simen-video-note">videostrøm ikke tilgjengelig</div></div>' +
                 '<div class="simen-video-tag"><span class="simen-live">LIVE</span></div>' +
                 '<div class="simen-video-caption">' + esc(CFG.videoCaption) + '</div>' +
             '</div>' +
@@ -332,10 +332,19 @@
             video.style.setProperty('--sl', '0px');
         }
     }
+    var VIDEO_NOTE = { init: 'kobler til YouTube', stalled: 'strømmen stoppet opp', ended: 'strømmen er avsluttet', 'not-playing': 'starter ikke',
+        'api-failed': 'YouTube-API kunne ikke lastes', 'api-timeout': 'YouTube-API svarer ikke', 'player-failed': 'spilleren feilet' };
     function setVideoState(s) {
         videoState = s;
         video.classList.toggle('video-error', s !== 'ok');
         if (s !== 'ok') console.log('[' + LABEL + '] video → ' + s);
+        updateVideoNote();
+    }
+    function updateVideoNote() {
+        var el = $('simen-video-note');
+        if (!el) return;
+        var txt = VIDEO_NOTE[videoState] || (/^error/.test(videoState) ? 'YouTube-feil ' + videoState.slice(6) : videoState);
+        el.textContent = txt + (vw.attempts ? ' · prøver igjen (' + vw.attempts + ')' : '');
     }
     function loadYouTube() {
         var prev = window.onYouTubeIframeAPIReady;
@@ -343,35 +352,73 @@
         if (window.YT && window.YT.Player) { createPlayer(); return; }
         var s = document.createElement('script');
         s.src = 'https://www.youtube.com/iframe_api';
-        s.onerror = function() { setVideoState('api-failed'); };
+        s.onerror = function() { setVideoState('api-failed'); s.remove(); setTimeout(loadYouTube, 5 * 60 * 1000); };
         document.head.appendChild(s);
         setTimeout(function() { if (videoState === 'init') setVideoState('api-timeout'); }, 30000);
     }
+    /* Player lifecycle. onStateChange alone is not enough on flaky Wi-Fi: a stalled stream just sits in BUFFERING or
+       UNSTARTED and never fires an error. A watchdog polls the real player state every 10s and, once nothing has played
+       for 30s, escalates once a minute: resume → reload the stream → rebuild the player, then round again. */
+    var vw = { lastPlaying: 0, lastAttempt: 0, attempts: 0 };
     function createPlayer() {
         var vars = { autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 };
         if (location.protocol !== 'file:') vars.origin = location.origin;
+        var host = $('simen-yt');
+        if (!host) {                                                        // destroyed by a rebuild — put the host element back
+            host = document.createElement('div');
+            host.id = 'simen-yt'; host.className = 'simen-video-player';
+            var box = video.querySelector('.simen-player-box');
+            box.insertBefore(host, box.firstChild);
+        }
         try {
             ytPlayer = new YT.Player('simen-yt', {
                 videoId: CFG.videoId, width: '100%', height: '100%', playerVars: vars,
                 events: {
                     onReady: function(e) { e.target.mute(); e.target.playVideo(); },
                     onStateChange: function(e) {
-                        if (e.data === YT.PlayerState.PLAYING) { if (videoState !== 'ok') console.log('[' + LABEL + '] video → playing'); setVideoState('ok'); }
+                        if (e.data === YT.PlayerState.PLAYING) markPlaying();
                         else if (e.data === YT.PlayerState.ENDED) setVideoState('ended');
                     },
                     onError: function(e) { setVideoState('error ' + e.data); },
                 },
             });
         } catch (e) { setVideoState('player-failed'); }
-        setTimeout(function() { if (videoState !== 'ok') setVideoState('not-playing'); }, 45000);
-        // Retry a dropped stream every 10 minutes
-        setInterval(function() {
-            if (videoState === 'ok' || !ytPlayer || !ytPlayer.loadVideoById) return;
-            console.log('[' + LABEL + '] video → retry');
-            try { ytPlayer.loadVideoById(CFG.videoId); ytPlayer.mute(); } catch (e) { /* ignore */ }
-        }, 10 * 60 * 1000);
+        vw.lastPlaying = Date.now();                                        // grace period for the new player
     }
-
+    function markPlaying() {
+        vw.lastPlaying = Date.now();
+        if (videoState !== 'ok') { console.log('[' + LABEL + '] video → playing' + (vw.attempts ? ' (after ' + vw.attempts + ' retries)' : '')); vw.attempts = 0; setVideoState('ok'); }
+    }
+    function rebuildPlayer() {
+        try { if (ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); } catch (e) { /* ignore */ }
+        ytPlayer = null;
+        var old = $('simen-yt'); if (old) old.remove();
+        createPlayer();
+    }
+    function videoWatchdog() {
+        if (!ytPlayer) {
+            if (window.YT && YT.Player && video && videoState !== 'init') rebuildPlayer();   // API arrived late or player got lost
+            return;
+        }
+        var state = -2;
+        try { state = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -2; } catch (e) { /* ignore */ }
+        if (state === 1) { markPlaying(); return; }
+        if (Date.now() - vw.lastPlaying < 30000) return;                  // short buffering is normal
+        if (videoState === 'ok') setVideoState('stalled');
+        if (Date.now() - vw.lastAttempt < 60000) return;
+        vw.lastAttempt = Date.now(); vw.attempts++;
+        var step = vw.attempts % 3;                                         // 1: resume, 2: reload stream, 0: rebuild player
+        try {
+            if (step === 1) { ytPlayer.mute(); ytPlayer.playVideo(); console.log('[' + LABEL + '] video retry ' + vw.attempts + ': resume'); }
+            else if (step === 2) { ytPlayer.loadVideoById(CFG.videoId); ytPlayer.mute(); console.log('[' + LABEL + '] video retry ' + vw.attempts + ': reload stream'); }
+            else { console.log('[' + LABEL + '] video retry ' + vw.attempts + ': rebuild player'); rebuildPlayer(); }
+        } catch (e) {
+            console.log('[' + LABEL + '] video retry failed (' + e.message + ') → rebuild player');
+            rebuildPlayer();
+        }
+        updateVideoNote();
+    }
+    setInterval(videoWatchdog, 10000);
     var takeoverTimer = null;
     function takeover(ms, gold) {
         if (!video) return;
@@ -526,5 +573,7 @@
     setInterval(loadResults, CFG.resultsRefresh);
     setTimeout(loadLaps, 30000);
     setInterval(loadLaps, CFG.lapsRefresh);
-    window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish };
+    window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish,
+        video: { state: function() { return videoState; }, watch: vw, pause: function() { if (ytPlayer) ytPlayer.pauseVideo(); },
+                 tick: videoWatchdog, rebuild: rebuildPlayer } };
 })();
