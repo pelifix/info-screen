@@ -133,6 +133,15 @@
 }
 .simen-video.video-error .simen-video-fallback { display: flex; }
 .simen-video-fallback .emoji { font-size: 3rem; letter-spacing: 0; }
+.simen-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+.simen-still-text { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.simen-video.has-still .simen-still { display: block; }
+.simen-video.has-still .simen-still-text { position: absolute; left: 0; right: 0; bottom: 28px; padding: 24px 12px 2px; gap: 0;   /* sits just above the caption strip */
+    background: linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0)); font-size: 0.7rem; }
+.simen-video.big.has-still .simen-still-text { bottom: 48px; font-size: 0.85rem; }
+.simen-video.has-still .simen-still-text .emoji, .simen-video.has-still .simen-still-text > div:not(.dim) { display: none; }   /* only the status note; the LIVE·STILLBILDE tag says the rest */
+.simen-video.has-still .simen-still-text .dim { opacity: 0.9; }
+.simen-video.has-still .simen-video-tag .simen-live::after { content: 'STILLBILDE'; margin-left: 8px; opacity: 0.7; }
 .simen-video-fallback .dim { font-size: 0.7rem; opacity: 0.6; letter-spacing: 0.5px; }
 .simen-video-tag { position: absolute; top: 10px; left: 10px; z-index: 3; }
 .simen-video-tag .simen-live { background: rgba(0,0,0,0.55); padding: 5px 10px; border-radius: 6px; color: #fff; }

@@ -306,7 +306,10 @@
         video.innerHTML =
             '<div class="simen-player-box">' +
                 '<div class="simen-video-player" id="simen-yt"></div>' +
-                '<div class="simen-video-fallback"><div class="emoji">🏃</div><div>SIMEN LIVE</div><div class="dim" id="simen-video-note">videostrøm ikke tilgjengelig</div></div>' +
+                '<div class="simen-video-fallback">' +
+                '<img class="simen-still" id="simen-still" alt="">' +
+                '<div class="simen-still-text"><div class="emoji">🏃</div><div>SIMEN LIVE</div><div class="dim" id="simen-video-note">videostrøm ikke tilgjengelig</div></div>' +
+            '</div>' +
                 '<div class="simen-video-tag"><span class="simen-live">LIVE</span></div>' +
                 '<div class="simen-video-caption">' + esc(CFG.videoCaption) + '</div>' +
             '</div>' +
@@ -339,11 +342,29 @@
         video.classList.toggle('video-error', s !== 'ok');
         if (s !== 'ok') console.log('[' + LABEL + '] video → ' + s);
         updateVideoNote();
+        updateStill();
+    }
+    // While the player is down, show YouTube's live thumbnail instead (a near-live still, refreshed by YouTube every
+    // few minutes). Reloaded every 2 minutes while the fallback is visible.
+    var stillTimer = null;
+    function updateStill() {
+        var img = $('simen-still');
+        if (!img) return;
+        if (videoState === 'ok') {
+            if (stillTimer) { clearInterval(stillTimer); stillTimer = null; }
+            return;
+        }
+        var load = function() {
+            img.onload = function() { video.classList.add('has-still'); };
+            img.onerror = function() { video.classList.remove('has-still'); };
+            img.src = 'https://i.ytimg.com/vi/' + CFG.videoId + '/sddefault_live.jpg?t=' + Date.now();
+        };
+        if (!stillTimer) { load(); stillTimer = setInterval(load, 2 * 60 * 1000); }
     }
     function updateVideoNote() {
         var el = $('simen-video-note');
         if (!el) return;
-        var txt = VIDEO_NOTE[videoState] || (/^error/.test(videoState) ? 'YouTube-feil ' + videoState.slice(6) : videoState);
+        var txt = VIDEO_NOTE[videoState] || (/^error/.test(videoState) ? 'YouTube-feil ' + videoState.slice(6) + (/150|101|153/.test(videoState) ? ' (avspilling nektet)' : '') : videoState);
         el.textContent = txt + (vw.attempts ? ' · prøver igjen (' + vw.attempts + ')' : '');
     }
     function loadYouTube() {
@@ -359,7 +380,8 @@
     /* Player lifecycle. onStateChange alone is not enough on flaky Wi-Fi: a stalled stream just sits in BUFFERING or
        UNSTARTED and never fires an error. A watchdog polls the real player state every 10s and, once nothing has played
        for 30s, escalates once a minute: resume → reload the stream → rebuild the player, then round again. */
-    var vw = { lastPlaying: 0, lastAttempt: 0, attempts: 0 };
+    var vw = { lastPlaying: 0, lastAttempt: 0, attempts: 0, rebuilds: 0 };
+    var YT_HOSTS = ['https://www.youtube.com', 'https://www.youtube-nocookie.com'];
     function createPlayer() {
         var vars = { autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 };
         if (location.protocol !== 'file:') vars.origin = location.origin;
@@ -373,6 +395,7 @@
         try {
             ytPlayer = new YT.Player('simen-yt', {
                 videoId: CFG.videoId, width: '100%', height: '100%', playerVars: vars,
+                host: YT_HOSTS[vw.rebuilds % YT_HOSTS.length],           // alternate hosts: a refusal on one sometimes clears on the other
                 events: {
                     onReady: function(e) { e.target.mute(); e.target.playVideo(); },
                     onStateChange: function(e) {
@@ -393,6 +416,7 @@
         try { if (ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); } catch (e) { /* ignore */ }
         ytPlayer = null;
         var old = $('simen-yt'); if (old) old.remove();
+        vw.rebuilds++;
         createPlayer();
     }
     function videoWatchdog() {
@@ -407,7 +431,7 @@
         if (videoState === 'ok') setVideoState('stalled');
         if (Date.now() - vw.lastAttempt < 60000) return;
         vw.lastAttempt = Date.now(); vw.attempts++;
-        var step = vw.attempts % 3;                                         // 1: resume, 2: reload stream, 0: rebuild player
+        var step = /^error/.test(videoState) ? 0 : vw.attempts % 3;         // 1: resume, 2: reload stream, 0: rebuild player (straight to rebuild after a YouTube error)
         try {
             if (step === 1) { ytPlayer.mute(); ytPlayer.playVideo(); console.log('[' + LABEL + '] video retry ' + vw.attempts + ': resume'); }
             else if (step === 2) { ytPlayer.loadVideoById(CFG.videoId); ytPlayer.mute(); console.log('[' + LABEL + '] video retry ' + vw.attempts + ': reload stream'); }
@@ -575,5 +599,5 @@
     setInterval(loadLaps, CFG.lapsRefresh);
     window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish,
         video: { state: function() { return videoState; }, watch: vw, pause: function() { if (ytPlayer) ytPlayer.pauseVideo(); },
-                 tick: videoWatchdog, rebuild: rebuildPlayer } };
+                 tick: videoWatchdog, rebuild: rebuildPlayer, fail: function(code) { setVideoState('error ' + (code || 150)); } } };
 })();
