@@ -18,18 +18,19 @@
         hideAfter: '2026-09-12T12:00:00+02:00',     // everything disappears on its own after this
         eventName: 'EMU 6-dagers · Balatonfüred',
         videoCaption: 'Balatonfüred — EMU 6-Day Race, direkte',
-        resultsRefresh: 60 * 1000,
+        resultsRefresh: 30 * 1000,                  // keep in sync with SOURCES.simen.refresh in app.js
         lapsRefresh: 5 * 60 * 1000,
         lapKm: 0.8982,
         breakHintFactor: 2,                         // current lap > factor × last lap (and > breakHintMinSec) → 'mulig pause'
         breakHintMinSec: 15 * 60,
         milestones: [800, 900, 1000],
         worldRecordKm: 1036.851,                    // men's 6-day world record (Yiannis Kouros, 2005) — confirm
-        lapConfettiMs: 90 * 1000,
+        lapConfettiMs: 120 * 1000,
         lapTakeoverMs: 40 * 1000,
-        milestoneConfettiMs: 180 * 1000,
+        milestoneConfettiMs: 240 * 1000,
         milestoneTakeoverMs: 60 * 1000,
         finishConfettiMs: 5 * 60 * 1000,
+        rocketMs: 5000,                             // firework rocket flight time before it explodes into the text panel
         finishTakeoverMs: 2 * 60 * 1000,
         colors: ['#ef2b2d', '#f4f4f4', '#3b6fd4', '#e8a83e'],
         goldColors: ['#ffd166', '#fff3c4', '#e8a83e', '#ffffff', '#ef2b2d'],
@@ -372,14 +373,11 @@
     }
 
     var takeoverTimer = null;
-    function takeover(ms, title, sub, sub2, gold) {
+    function takeover(ms, gold) {
         if (!video) return;
         var stamp = $('simen-stamp');
-        stamp.innerHTML = '<div class="simen-stamp-title">' + esc(title) + '</div>' +
-            (sub ? '<div class="simen-stamp-sub">' + esc(sub) + '</div>' : '') +
-            (sub2 ? '<div class="simen-stamp-sub2">' + esc(sub2) + '</div>' : '');
+        stamp.hidden = true; stamp.innerHTML = '';
         stamp.classList.toggle('gold', !!gold);
-        stamp.hidden = false;
         videoBig = true; video.classList.add('big'); positionVideo();
         if (takeoverTimer) clearTimeout(takeoverTimer);
         takeoverTimer = setTimeout(function() {
@@ -387,6 +385,19 @@
             videoBig = false; video.classList.remove('big'); positionVideo();
             takeoverTimer = null;
         }, ms);
+    }
+    function showStamp(title, sub, sub2) {
+        if (!video || !videoBig) return;
+        var stamp = $('simen-stamp');
+        stamp.innerHTML = '<div class="simen-stamp-title">' + esc(title) + '</div>' +
+            (sub ? '<div class="simen-stamp-sub">' + esc(sub) + '</div>' : '') +
+            (sub2 ? '<div class="simen-stamp-sub2">' + esc(sub2) + '</div>' : '');
+        stamp.hidden = false;
+    }
+    // Centre of the text panel (right of the 16:9 player) once the video box covers the hero, as viewport fractions
+    function stampTarget() {
+        var r = hero.getBoundingClientRect(), pw = r.height * 16 / 9;
+        return { x: (r.left + pw + (r.width - pw) / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight };
     }
 
     /* ── celebrations ── */
@@ -397,47 +408,57 @@
         if (glowTimer) clearTimeout(glowTimer);
         glowTimer = setTimeout(function() { banner.classList.remove('celebrate', 'gold'); }, ms);
     }
+    // Shared choreography: confetti + banner glow right away, the video box expands over the hero with an empty
+    // panel, a firework rocket loops around the screen and explodes on that panel, and the text pops in there.
+    function fireworkShow(o) {
+        if (window.Celebration) Celebration.confetti({ duration: o.confettiMs, colors: o.colors, rate: o.rate, burstCount: o.burstCount, decay: o.decay !== false });
+        bannerGlow(o.confettiMs, o.gold);
+        takeover(o.takeoverMs, o.gold);
+        var reveal = function() { showStamp(o.title, o.sub, o.sub2); };
+        if (window.Celebration && Celebration.rocket) {
+            var t = stampTarget();
+            Celebration.rocket({ x: t.x, y: t.y, duration: CFG.rocketMs, colors: o.colors, glow: o.gold ? '#ffd166' : '#ffb347', onExplode: reveal });
+        } else {
+            reveal();
+        }
+        IS.rebuildTicker();
+    }
+    function posText() { return st.pos + '. plass' + (gapText() ? ' · ' + gapText() : ''); }
     function celebrateLap() {
         console.log('[' + LABEL + '] 🎉 ny runde: ' + st.laps);
-        if (window.Celebration) Celebration.confetti({ duration: CFG.lapConfettiMs, colors: CFG.colors, rate: 40 });
-        bannerGlow(CFG.lapConfettiMs, false);
-        takeover(CFG.lapTakeoverMs, 'RUNDE ' + st.laps, fmtKm(st.km) + ' km · ' + st.pos + '. plass', gapText(), false);
-        IS.rebuildTicker();
+        fireworkShow({ confettiMs: CFG.lapConfettiMs, rate: 90, burstCount: 180, colors: CFG.colors, takeoverMs: CFG.lapTakeoverMs, gold: false,
+            title: 'SIMEN!', sub: st.laps + ' runder · ' + fmtKm(st.km) + ' km', sub2: posText() });
     }
     function celebrateMilestone(title, sub) {
         console.log('[' + LABEL + '] 🏆 milepæl: ' + title);
+        fireworkShow({ confettiMs: CFG.milestoneConfettiMs, rate: 120, burstCount: 220, colors: CFG.goldColors, takeoverMs: CFG.milestoneTakeoverMs, gold: true,
+            title: title, sub: 'Simen · ' + st.laps + ' runder · ' + fmtKm(st.km) + ' km', sub2: sub + ' · ' + posText() });
         if (window.Celebration) {
-            Celebration.confetti({ duration: CFG.milestoneConfettiMs, colors: CFG.goldColors, rate: 70 });
             for (var i = 0; i < 8; i++) {
                 setTimeout(function() {
                     Celebration.burst({ x: 0.15 + Math.random() * 0.7, y: 0.35 + Math.random() * 0.4, count: 160, colors: CFG.goldColors, spread: Math.PI * 2 });
-                }, 500 + i * 900);
+                }, CFG.rocketMs + 800 + i * 900);
             }
         }
-        bannerGlow(CFG.milestoneConfettiMs, true);
-        takeover(CFG.milestoneTakeoverMs, title, sub, gapText(), true);
-        IS.rebuildTicker();
     }
     function celebrateFinish() {
         console.log('[' + LABEL + '] 🏁 mål!');
+        fireworkShow({ confettiMs: CFG.finishConfettiMs, rate: 110, burstCount: 250, colors: CFG.goldColors, takeoverMs: CFG.finishTakeoverMs, gold: true, decay: false,
+            title: 'MÅL!', sub: 'Simen · ' + fmtKm(st.km) + ' km · ' + st.laps + ' runder', sub2: posText() });
         if (window.Celebration) {
-            Celebration.confetti({ duration: CFG.finishConfettiMs, colors: CFG.goldColors, rate: 80, decay: false });
             for (var i = 0; i < 16; i++) {
                 setTimeout(function() {
                     Celebration.burst({ x: 0.1 + Math.random() * 0.8, y: 0.3 + Math.random() * 0.5, count: 180, colors: CFG.goldColors, spread: Math.PI * 2 });
-                }, 600 + i * 1200);
+                }, CFG.rocketMs + 800 + i * 1200);
             }
         }
-        bannerGlow(CFG.finishConfettiMs, true);
-        takeover(CFG.finishTakeoverMs, 'MÅL!', st.pos + '. plass · ' + fmtKm(st.km) + ' km', gapText(), true);
-        IS.rebuildTicker();
     }
     function detectEvents() {
         if (prevLaps != null && st.laps > prevLaps) celebrateLap();
         var fromKm = prevKm != null ? prevKm : storedKm;
         if (fromKm != null && st.km > fromKm) {
             var hit = null;
-            CFG.milestones.forEach(function(m) { if (fromKm < m && st.km >= m) hit = { title: m + ' KM!', sub: 'Milepæl passert · ' + st.pos + '. plass' }; });
+            CFG.milestones.forEach(function(m) { if (fromKm < m && st.km >= m) hit = { title: m + ' KM!', sub: 'Milepæl passert' }; });
             if (fromKm < CFG.worldRecordKm && st.km >= CFG.worldRecordKm) hit = { title: 'VERDENSREKORD!', sub: fmtKm(st.km) + ' km – forbi ' + fmtKm(CFG.worldRecordKm) + ' km' };
             if (hit) celebrateMilestone(hit.title, hit.sub);
         }

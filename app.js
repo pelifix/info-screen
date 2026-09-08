@@ -97,7 +97,7 @@
         forum:       { label: 'Forum',       status: 'pending', refresh: CONFIG.eventsRefresh,    proxy: 'cors' },
         politi:      { label: 'Politi',      status: 'pending', refresh: CONFIG.policeRefresh,   proxy: 'cors' },
         parkering:   { label: 'Parkering',   status: 'pending', refresh: 5 * 60 * 1000,           proxy: 'cors' },       // Stavanger open data, live garage counts
-        simen:       { label: 'Simen',       status: 'pending', refresh: 60 * 1000,               proxy: 'cors' },   // see simen.js
+        simen:       { label: 'Simen',       status: 'pending', refresh: 30 * 1000,               proxy: 'cors' },   // see simen.js
     };
 
     var preRefreshTimers = {};
@@ -246,6 +246,11 @@
         return { status: 'ok', items: items };
     }
 
+    // The proxy that worked last is tried first next time (a dead codetabs otherwise costs 15s per fetch);
+    // cleared every 30 min so the primary gets re-probed.
+    var lastGoodProxy = null;
+    setInterval(function() { lastGoodProxy = null; }, 30 * 60 * 1000);
+
     async function sourceFetch(sourceKey, url, opts) {
         opts = opts || {};
         var proxy = opts.proxy !== undefined ? opts.proxy : (SOURCES[sourceKey] ? SOURCES[sourceKey].proxy : 'none');
@@ -297,11 +302,16 @@
             var proxies = opts.proxyOrder
                 ? opts.proxyOrder.map(function(n) { return CONFIG.corsProxies.filter(function(p) { return p.name === n; })[0]; }).filter(Boolean)
                 : CONFIG.corsProxies.filter(function(p) { return !p.onRequest; });
+            if (!opts.proxyOrder && lastGoodProxy) {
+                proxies = proxies.filter(function(p) { return p.name === lastGoodProxy; })
+                    .concat(proxies.filter(function(p) { return p.name !== lastGoodProxy; }));
+            }
             for (var pi = 0; pi < proxies.length; pi++) {
                 var px = proxies[pi];
                 try {
                     data = await doFetch(px.url(url), CONFIG.proxyTimeout);
                     lastErr = null;
+                    if (!opts.proxyOrder) lastGoodProxy = px.name;
                     break;
                 } catch (e) {
                     lastErr = e;
@@ -1323,7 +1333,7 @@
     /* ═══ FLIGHTS FROM SOLA (Avinor XmlFeed) ═══
        Shares the bottom card with the bus list: 40 s bus, 20 s flights. Times in the feed are UTC; status codes
        are N new info, E new time, D departed, A arrived, C cancelled. The feed rejects browser Origins, so proxy. */
-    var FLY_URL = 'https://asrv.avinor.no/XmlFeed/v1.0?airport=SVG&TimeFrom=0&TimeTo=6&direction=D';
+    var FLY_URL = 'https://asrv.avinor.no/XmlFeed/v1.0?airport=SVG&TimeFrom=0&TimeTo=6';   // no direction param = arrivals + departures in one call
     var FLY_AIRPORTS = {
         OSL: 'Oslo', BGO: 'Bergen', TRD: 'Trondheim', TRF: 'Sandefjord Torp', KRS: 'Kristiansand', AES: 'Ålesund', HAU: 'Haugesund',
         BOO: 'Bodø', TOS: 'Tromsø', EVE: 'Harstad/Narvik', KSU: 'Kristiansund', MOL: 'Molde', FRO: 'Florø', SVG: 'Stavanger',
@@ -1337,22 +1347,24 @@
     };
     var flyEl = document.getElementById('fly-list'), flyBlock = document.getElementById('fly-block'), busBlock = document.getElementById('bus-block');
     var flights = [];
+    var flyMode = 'A';                  // toggled before each showing, so the first one is departures
     function flyText(el, tag) { var n = el.getElementsByTagName(tag)[0]; return n ? n.textContent.trim() : ''; }
     function parseFlights(xml) {
         var doc = new DOMParser().parseFromString(xml, 'text/xml');
         if (doc.querySelector('parsererror')) throw new Error('XML parse error');
         var out = [];
         doc.querySelectorAll('flight').forEach(function(f) {
-            if (flyText(f, 'arr_dep') !== 'D') return;
+            var dir = flyText(f, 'arr_dep');
+            if (dir !== 'D' && dir !== 'A') return;
             var sched = new Date(flyText(f, 'schedule_time'));
             if (isNaN(sched.getTime())) return;
             var st = f.getElementsByTagName('status')[0];
             var code = st ? (st.getAttribute('code') || '') : '';
-            if (code === 'D') return;                                           // already departed
+            if (code === 'D' || code === 'A') return;                           // already departed / landed
             var newTime = st && st.getAttribute('time') ? new Date(st.getAttribute('time')) : null;
             var when = (code === 'E' && newTime && !isNaN(newTime.getTime())) ? newTime : sched;
             var iata = flyText(f, 'airport');
-            out.push({ sched: sched, when: when, code: code, id: flyText(f, 'flight_id'), dest: FLY_AIRPORTS[iata] || iata, gate: flyText(f, 'gate') });
+            out.push({ dir: dir, sched: sched, when: when, code: code, id: flyText(f, 'flight_id'), dest: FLY_AIRPORTS[iata] || iata, gate: flyText(f, 'gate'), belt: flyText(f, 'belt') });
         });
         out.sort(function(a, b) { return a.when - b.when; });
         return out;
@@ -1360,12 +1372,16 @@
     function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
     function renderFlights() {
         var now = Date.now();
-        var rows = flights.filter(function(f) { return f.when.getTime() > now - 5 * 60000; }).slice(0, 7);
-        if (!rows.length) { flyEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen avganger de neste timene</div>'; return; }
+        var arrivals = flyMode === 'A';
+        document.getElementById('fly-label').textContent = arrivals ? 'Fly til Sola' : 'Fly fra Sola';
+        document.getElementById('fly-airport').textContent = 'Stavanger lufthavn · ' + (arrivals ? 'ankomster' : 'avganger');
+        var rows = flights.filter(function(f) { return f.dir === flyMode && f.when.getTime() > now - 5 * 60000; }).slice(0, 7);
+        if (!rows.length) { flyEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen ' + (arrivals ? 'ankomster' : 'avganger') + ' de neste timene</div>'; return; }
         flyEl.innerHTML = rows.map(function(f) {
             var cancelled = f.code === 'C', delayed = f.code === 'E' && f.when.getTime() - f.sched.getTime() > 4 * 60000;
             var cls = cancelled ? ' cancelled' : delayed ? ' delayed' : '';
-            var status = cancelled ? 'Innstilt' : delayed ? 'Ny tid (' + hhmm(f.sched) + ')' : (f.gate ? 'Gate ' + escapeHtml(f.gate) : '');
+            var where = arrivals ? (f.belt ? 'Bånd ' + escapeHtml(f.belt) : '') : (f.gate ? 'Gate ' + escapeHtml(f.gate) : '');
+            var status = cancelled ? 'Innstilt' : delayed ? 'Ny tid (' + hhmm(f.sched) + ')' : where;
             return '<div class="fly-item">' +
                 '<div class="fly-time' + cls + '">' + hhmm(f.when) + '</div>' +
                 '<div class="fly-dest">' + escapeHtml(f.dest) + '<span class="fly-no">' + escapeHtml(f.id) + '</span></div>' +
@@ -1377,7 +1393,7 @@
         try {
             var xml = await sourceFetch('fly', FLY_URL, { parse: 'text', skipStatus: true, proxyOrder: ['codetabs', 'corslol', 'allorigins'] });   // redocly forwards Origin → 401; cors.lol rate-limits
             flights = parseFlights(xml);
-            console.log('[' + SOURCES.fly.label + '] avinor.no → ' + flights.length + ' departures');
+            console.log('[' + SOURCES.fly.label + '] avinor.no → ' + flights.filter(function(f) { return f.dir === 'D'; }).length + ' avganger, ' + flights.filter(function(f) { return f.dir === 'A'; }).length + ' ankomster');
             renderFlights();
             setSource('fly', 'ok');
         } catch (e) {
@@ -1387,12 +1403,12 @@
         }
     }
     var flyRetryTimer = null;
-    // Bus 40 s, flights 20 s (bus only until flights have loaded)
+    // Bus 40 s, flights 20 s (bus only until flights have loaded); the flights slot alternates departures and arrivals
     var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
     setInterval(function() {
         var showFly = flights.length > 0 && (Date.now() - flyCycleStart) % FLY_CYCLE_MS >= FLY_CYCLE_MS - FLY_SHOW_MS;
         if (showFly === !flyBlock.hidden) return;
-        if (showFly) renderFlights();                                       // re-filter departed flights before showing
+        if (showFly) { flyMode = flyMode === 'D' ? 'A' : 'D'; renderFlights(); }   // alternate departures / arrivals, re-filter before showing
         flyBlock.hidden = !showFly;
         busBlock.hidden = showFly;
     }, 1000);
