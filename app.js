@@ -1374,7 +1374,9 @@
         var now = Date.now();
         var arrivals = flyMode === 'A';
         document.getElementById('fly-label').textContent = arrivals ? 'Fly til Sola' : 'Fly fra Sola';
-        document.getElementById('fly-airport').textContent = 'Stavanger lufthavn · ' + (arrivals ? 'ankomster' : 'avganger');
+        var airportEl = document.getElementById('fly-airport');
+        airportEl.textContent = 'Stavanger lufthavn · ' + (arrivals ? 'ankomster' : 'avganger');
+        airportEl.className = 'bus-stop-name fly-airport ' + (arrivals ? 'arr' : 'dep');
         var rows = flights.filter(function(f) { return f.dir === flyMode && f.when.getTime() > now - 5 * 60000; }).slice(0, 7);
         if (!rows.length) { flyEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;">Ingen ' + (arrivals ? 'ankomster' : 'avganger') + ' de neste timene</div>'; return; }
         flyEl.innerHTML = rows.map(function(f) {
@@ -1405,12 +1407,20 @@
     var flyRetryTimer = null;
     // Bus 40 s, flights 20 s (bus only until flights have loaded); the flights slot alternates departures and arrivals
     var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
+    var flyShown = false, blockSwapTimer = null;
+    function swapBlocks(showFly) {
+        var show = showFly ? flyBlock : busBlock, hide = showFly ? busBlock : flyBlock;
+        hide.classList.remove('active'); hide.classList.add('leaving');
+        show.classList.remove('leaving'); show.classList.add('active');
+        if (blockSwapTimer) clearTimeout(blockSwapTimer);
+        blockSwapTimer = setTimeout(function() { hide.classList.remove('leaving'); blockSwapTimer = null; }, 700);   // park it off to the right again
+    }
     setInterval(function() {
         var showFly = flights.length > 0 && (Date.now() - flyCycleStart) % FLY_CYCLE_MS >= FLY_CYCLE_MS - FLY_SHOW_MS;
-        if (showFly === !flyBlock.hidden) return;
+        if (showFly === flyShown) return;
+        flyShown = showFly;
         if (showFly) { flyMode = flyMode === 'D' ? 'A' : 'D'; renderFlights(); }   // alternate departures / arrivals, re-filter before showing
-        flyBlock.hidden = !showFly;
-        busBlock.hidden = showFly;
+        swapBlocks(showFly);
     }, 1000);
     setTimeout(loadFlights, 16000);
     setInterval(loadFlights, SOURCES.fly.refresh);

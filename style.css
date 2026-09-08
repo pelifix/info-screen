@@ -628,7 +628,7 @@ body.hide-cursor { cursor: none; }
 .bus-stop-name::before { content: '\1F68F  '; }
 /* Card stretches to fill the sidebar. When the rows overflow, the list drifts like the events
    widget (.bus-scroll gets .scrolling + duplicated content; see layoutBusList in app.js). */
-.bus-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bus-card { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .bus-list { flex: 1; min-height: 0; overflow: hidden; position: relative; }
 .bus-scroll { display: flex; flex-direction: column; will-change: transform; }
 .bus-scroll.scrolling { animation: bus-drift linear infinite; }
@@ -659,11 +659,19 @@ body.hide-cursor { cursor: none; }
     background: #4ade80; margin-right: 3px; vertical-align: middle;
 }
 
-/* The bottom card alternates between the bus list and departures from Sola (see loadFlights in app.js) */
-.bus-block, .fly-block { flex: 1; min-height: 0; display: flex; flex-direction: column; animation: block-fade 0.6s ease; }
-.bus-block[hidden], .fly-block[hidden] { display: none; }
-@keyframes block-fade { from { opacity: 0; } to { opacity: 1; } }
+/* The bottom card alternates between the bus list and flights at Sola (see loadFlights in app.js).
+   Both blocks sit on top of each other inside the card; the one leaving slides out left while the next slides in
+   from the right (same motion as the hero cards). Blocks are moved, not hidden, so the bus list keeps scrolling. */
+.bus-block, .fly-block {
+    position: absolute; inset: 8px 12px; display: flex; flex-direction: column; min-height: 0;
+    transform: translateX(110%); opacity: 0; pointer-events: none;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease;
+}
+.bus-block.active, .fly-block.active { transform: translateX(0); opacity: 1; }
+.bus-block.leaving, .fly-block.leaving { transform: translateX(-110%); opacity: 0; }
 .fly-airport::before { content: '\2708\FE0F  '; }
+.fly-airport.dep::before { content: '\1F6EB  '; }   /* airplane departure */
+.fly-airport.arr::before { content: '\1F6EC  '; }   /* airplane arrival */
 .fly-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 .fly-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
 .fly-item + .fly-item { border-top: 1px solid var(--border); }
