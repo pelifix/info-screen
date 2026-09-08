@@ -1397,6 +1397,7 @@
             flights = parseFlights(xml);
             console.log('[' + SOURCES.fly.label + '] avinor.no → ' + flights.filter(function(f) { return f.dir === 'D'; }).length + ' avganger, ' + flights.filter(function(f) { return f.dir === 'A'; }).length + ' ankomster');
             renderFlights();
+            renderCardTabs();
             setSource('fly', 'ok');
         } catch (e) {
             console.log('[' + SOURCES.fly.label + '] avinor.no → ERROR ' + e.message);
@@ -1407,6 +1408,26 @@
     var flyRetryTimer = null;
     // Bus 40 s, flights 20 s (bus only until flights have loaded); the flights slot alternates departures and arrivals
     var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
+    var busCard = document.querySelector('.bus-card'), cardTabs = document.getElementById('card-tabs');
+    var CARD_TAB_META = { bus: { label: 'Buss', color: '#e8a83e' }, D: { label: 'Avganger', color: '#38bdf8' }, A: { label: 'Ankomster', color: '#4ade80' } };
+    // Queue tabs: [current, next, after that]. While the bus shows, flyMode still holds the mode shown last time,
+    // so the next flights block is the opposite one.
+    function renderCardTabs() {
+        if (!cardTabs) return;
+        if (!flights.length) { cardTabs.innerHTML = ''; busCard.classList.remove('has-tabs'); return; }
+        busCard.classList.add('has-tabs');
+        var phase = (Date.now() - flyCycleStart) % FLY_CYCLE_MS;
+        var showFly = phase >= FLY_CYCLE_MS - FLY_SHOW_MS;
+        var other = function(m) { return m === 'D' ? 'A' : 'D'; };
+        var order = showFly ? [flyMode, 'bus', other(flyMode)] : ['bus', other(flyMode), flyMode];
+        var dur = showFly ? FLY_SHOW_MS : FLY_CYCLE_MS - FLY_SHOW_MS;
+        var elapsed = showFly ? phase - (FLY_CYCLE_MS - FLY_SHOW_MS) : phase;
+        cardTabs.innerHTML = order.map(function(k, i) {
+            var m = CARD_TAB_META[k];
+            var fillStyle = 'background:' + m.color + (i === 0 ? ';animation-duration:' + (dur / 1000) + 's;animation-delay:-' + (elapsed / 1000).toFixed(2) + 's' : '');
+            return '<div class="hero-tab' + (i === 0 ? ' active' : '') + '"><div class="hero-tab-fill" style="' + fillStyle + '"></div><span class="hero-tab-label">' + m.label + '</span></div>';
+        }).join('');
+    }
     var flyShown = false, blockSwapTimer = null;
     function swapBlocks(showFly) {
         var show = showFly ? flyBlock : busBlock, hide = showFly ? busBlock : flyBlock;
@@ -1421,6 +1442,7 @@
         flyShown = showFly;
         if (showFly) { flyMode = flyMode === 'D' ? 'A' : 'D'; renderFlights(); }   // alternate departures / arrivals, re-filter before showing
         swapBlocks(showFly);
+        renderCardTabs();
     }, 1000);
     setTimeout(loadFlights, 16000);
     setInterval(loadFlights, SOURCES.fly.refresh);
