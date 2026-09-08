@@ -141,7 +141,8 @@
 .simen-video.big.has-still .simen-still-text { bottom: 48px; font-size: 0.85rem; }
 .simen-video.has-still .simen-still-text .emoji, .simen-video.has-still .simen-still-text > div:not(.dim) { display: none; }   /* only the status note; the LIVE·STILLBILDE tag says the rest */
 .simen-video.has-still .simen-still-text .dim { opacity: 0.9; }
-.simen-video.has-still .simen-video-tag .simen-live::after { content: 'STILLBILDE'; margin-left: 8px; opacity: 0.7; }
+.simen-video.has-still .simen-video-tag .simen-live::after { content: 'INGEN VIDEO'; margin-left: 8px; opacity: 0.7; }
+.simen-video.parked:not(.big) { display: none; }   /* slot handed back to the slideshow; still used for celebrations */
 .simen-video-fallback .dim { font-size: 0.7rem; opacity: 0.6; letter-spacing: 0.5px; }
 .simen-video-tag { position: absolute; top: 10px; left: 10px; z-index: 3; }
 .simen-video-tag .simen-live { background: rgba(0,0,0,0.55); padding: 5px 10px; border-radius: 6px; color: #fff; }

@@ -359,7 +359,7 @@
             img.onerror = function() { video.classList.remove('has-still'); };
             img.src = 'https://i.ytimg.com/vi/' + CFG.videoId + '/sddefault_live.jpg?t=' + Date.now();
         };
-        if (!stillTimer) { load(); stillTimer = setInterval(load, 2 * 60 * 1000); }
+        if (!stillTimer) { load(); stillTimer = setInterval(load, 10 * 60 * 1000); }
     }
     function updateVideoNote() {
         var el = $('simen-video-note');
@@ -380,7 +380,20 @@
     /* Player lifecycle. onStateChange alone is not enough on flaky Wi-Fi: a stalled stream just sits in BUFFERING or
        UNSTARTED and never fires an error. A watchdog polls the real player state every 10s and, once nothing has played
        for 30s, escalates once a minute: resume → reload the stream → rebuild the player, then round again. */
-    var vw = { lastPlaying: 0, lastAttempt: 0, attempts: 0, rebuilds: 0 };
+    var vw = { lastPlaying: 0, lastAttempt: 0, attempts: 0, rebuilds: 0, downSince: null, parked: false };
+    var PARK_AFTER_MS = 3 * 60 * 1000;
+    // On networks where YouTube refuses to play (the TV box gets error 150), a frozen poster is worse than the normal
+    // slideshow. After 3 min without video the slot goes back to the slideshow; the player keeps retrying in the
+    // background and takes the slot again as soon as it plays. Celebrations still expand the box over the hero.
+    function parkVideo(park) {
+        if (park === vw.parked) return;
+        vw.parked = park;
+        var slot = $('daily-images');
+        if (slot) slot.classList.toggle('video-takeover', !park);
+        IS.pauseSlideshow = !park;
+        video.classList.toggle('parked', park);
+        console.log('[' + LABEL + '] video → ' + (park ? 'slot handed back to the slideshow' : 'slot reclaimed'));
+    }
     var YT_HOSTS = ['https://www.youtube.com', 'https://www.youtube-nocookie.com'];
     function createPlayer() {
         var vars = { autoplay: 1, mute: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, fs: 0 };
@@ -410,6 +423,8 @@
     }
     function markPlaying() {
         vw.lastPlaying = Date.now();
+        vw.downSince = null;
+        parkVideo(false);
         if (videoState !== 'ok') { console.log('[' + LABEL + '] video → playing' + (vw.attempts ? ' (after ' + vw.attempts + ' retries)' : '')); vw.attempts = 0; setVideoState('ok'); }
     }
     function rebuildPlayer() {
@@ -429,6 +444,8 @@
         if (state === 1) { markPlaying(); return; }
         if (Date.now() - vw.lastPlaying < 30000) return;                  // short buffering is normal
         if (videoState === 'ok') setVideoState('stalled');
+        if (vw.downSince == null) vw.downSince = Date.now();
+        if (Date.now() - vw.downSince >= PARK_AFTER_MS) parkVideo(true);
         if (Date.now() - vw.lastAttempt < 60000) return;
         vw.lastAttempt = Date.now(); vw.attempts++;
         var step = /^error/.test(videoState) ? 0 : vw.attempts % 3;         // 1: resume, 2: reload stream, 0: rebuild player (straight to rebuild after a YouTube error)
@@ -599,5 +616,5 @@
     setInterval(loadLaps, CFG.lapsRefresh);
     window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish,
         video: { state: function() { return videoState; }, watch: vw, pause: function() { if (ytPlayer) ytPlayer.pauseVideo(); },
-                 tick: videoWatchdog, rebuild: rebuildPlayer, fail: function(code) { setVideoState('error ' + (code || 150)); } } };
+                 tick: videoWatchdog, rebuild: rebuildPlayer, fail: function(code) { setVideoState('error ' + (code || 150)); }, park: parkVideo } };
 })();
