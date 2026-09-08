@@ -671,9 +671,10 @@ body.hide-cursor { cursor: none; }
 .bus-block.leaving, .fly-block.leaving { transform: translateX(-110%); opacity: 0; }
 /* Queue indicator for the bottom card (bus → departures → arrivals): same tabs as the hero, active first with a
    fill running down the remaining time, then the upcoming blocks in order. Only shown once flights have loaded. */
-.card-tabs { position: absolute; top: 7px; right: 12px; width: 236px; display: none; align-items: center; gap: 4px; z-index: 3; }
+.card-tabs { position: absolute; top: 7px; right: 12px; width: 262px; display: none; align-items: center; gap: 4px; z-index: 3; }
+.card-tabs .hero-tab { flex: 1 1 auto; padding: 3px 5px; font-size: 0.56rem; letter-spacing: 0.3px; }   /* sized to the text so "Fly ankomster" fits */
 .bus-card.has-tabs .card-tabs { display: flex; }
-.bus-card.has-tabs .widget-label-line { margin-right: 244px; }
+.bus-card.has-tabs .widget-label-line { margin-right: 270px; }
 .fly-airport::before { content: '\2708\FE0F  '; }
 .fly-airport.dep::before { content: '\1F6EB  '; }   /* airplane departure */
 .fly-airport.arr::before { content: '\1F6EC  '; }   /* airplane arrival */

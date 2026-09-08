@@ -1409,7 +1409,7 @@
     // Bus 40 s, flights 20 s (bus only until flights have loaded); the flights slot alternates departures and arrivals
     var FLY_CYCLE_MS = 60000, FLY_SHOW_MS = 20000, flyCycleStart = Date.now();
     var busCard = document.querySelector('.bus-card'), cardTabs = document.getElementById('card-tabs');
-    var CARD_TAB_META = { bus: { label: 'Buss', color: '#e8a83e' }, D: { label: 'Avganger', color: '#38bdf8' }, A: { label: 'Ankomster', color: '#4ade80' } };
+    var CARD_TAB_META = { bus: { label: 'Buss', color: '#e8a83e' }, D: { label: 'Fly avganger', color: '#38bdf8' }, A: { label: 'Fly ankomster', color: '#4ade80' } };
     // Queue tabs: [current, next, after that]. While the bus shows, flyMode still holds the mode shown last time,
     // so the next flights block is the opposite one.
     function renderCardTabs() {
