@@ -456,11 +456,10 @@ body.hide-cursor { cursor: none; }
    The strip is 3:1, so it gets the whole hero: no text column, white plate, credit along the bottom. */
 .hero-card.comic-card { grid-template-columns: 1fr; padding: 0; }
 .hero-card.comic-card .hero-text { display: none; }
-/* Warm paper rather than stark white, with the strip pinned on it as a clipping: sized to its own box
-   (so no letterbox bands), rounded, lifted with a shadow. */
+/* The plate stays dark like every other card and the strip sits on it as a clipping: sized to its own
+   box (so no letterbox bands), rounded, lifted with a shadow. */
 .comic-card .hero-img-wrap {
-    background: linear-gradient(150deg, #efe6d4 0%, #e4d8c0 100%);
-    border-radius: var(--radius);
+    background: var(--bg-card); border-radius: var(--radius);
     display: flex; align-items: center; justify-content: center;
     padding: 18px 18px 38px; box-sizing: border-box;
 }
@@ -469,12 +468,12 @@ body.hide-cursor { cursor: none; }
 .comic-card .comic-img {
     width: auto; height: 100%; max-width: 100%; object-fit: contain; display: block;
     animation: none;                                   /* no Ken Burns on a comic */
-    border-radius: 5px; box-shadow: 0 8px 26px rgba(60, 44, 20, 0.35);
+    border-radius: 5px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
 }
 .comic-credit {
     position: absolute; right: 0; bottom: 0; z-index: 2; padding: 8px 20px 10px;
     font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 1px;
-    color: rgba(70, 52, 26, 0.55);                     /* ink on paper */
+    color: var(--text-dim);
 }
 
 /* ═══ PÅ DENNE DAGEN ═══ */
@@ -873,40 +872,26 @@ body.hide-cursor { cursor: none; }
 .source-status {
     background: var(--bg-card);
     border-radius: var(--radius) var(--radius) 0 0;
-    padding: 9px 14px 8px; height: 72px; overflow: hidden;
-    display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 7px;
+    padding: 6px 14px; height: 72px; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
     width: 430px; flex-shrink: 0;
 }
-.src-dots { display: flex; flex-wrap: wrap; gap: 6px 7px; justify-content: flex-end; align-items: center; }
-.src-item { display: inline-flex; align-items: center; gap: 5px; }
-.src-name {
+.src-line {
+    display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;
     font-family: var(--font-display); letter-spacing: var(--display-spacing);
-    font-size: 0.72rem; white-space: nowrap; color: var(--accent);
+    font-size: 0.74rem; line-height: 1.4;   /* three of these must clear 72px minus padding */
 }
-.src-item.error .src-name { color: #f87171; }
-.src-foot {
-    display: flex; align-items: center; gap: 12px;
-    font-size: 0.78rem; color: var(--text-dim);
-    font-family: var(--font-display); letter-spacing: var(--display-spacing);
+.src-key { color: var(--text-dim); flex: none; width: 5.4em; }   /* keeps the three labels aligned */
+.src-val { color: var(--text-secondary); white-space: nowrap; }
+.src-none { color: var(--text-dim); }
+.src-chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.src-chip.busy { color: var(--accent); }
+.src-chip.bad { color: #f87171; }
+.src-chip .dot {
+    width: 7px; height: 7px; border-radius: 50%; flex: none;
+    background: currentColor;                                     /* matches the chip's own colour */
 }
-.source-status .dot {
-    width: 8px; height: 8px; border-radius: 50%; flex: none;
-    background: var(--text-dim); transition: background 0.4s ease;
-}
-.source-status .dot.ok { background: #4ade80; }
-.source-status .dot.error { background: #f87171; }
-.source-status .dot.soon {
-    background: var(--accent);
-    animation: glow-dot 1.5s ease-in-out infinite;
-}
-@keyframes glow-dot {
-    0%, 100% { box-shadow: 0 0 2px 1px rgba(232, 168, 62, 0.2); }
-    50% { box-shadow: 0 0 10px 5px rgba(232, 168, 62, 0.8); }
-}
-.source-status .dot.loading {
-    background: var(--accent);
-    animation: pulse-dot 1s ease-in-out infinite;
-}
+.src-chip.busy .dot { animation: pulse-dot 1s ease-in-out infinite; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 /* ═══ TICKER ═══ */

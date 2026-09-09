@@ -173,32 +173,38 @@
     function renderSourceStatus() {
         var el = document.getElementById('source-status');
         if (!el) return;
-        var anyLoading = false, anySoon = false, bad = [];
+        var anyLoading = false, anySoon = false;
         var refreshEl = el.querySelector('.refresh-label');
         // 30 labelled dots wrapped to five rows and dragged the whole bottom bar taller, so the names are
         // only spelled out for what is actually broken. Everything else is one row of bare dots.
-        // Only the sources doing something get their name spelled out: whatever is fetching right now, and
-        // anything broken (which keeps its name until it recovers). The rest stay bare dots, so the row fits
-        // one line. Named entries are capped, otherwise the first seconds after load would name all 30.
-        var keys = Object.keys(SOURCES);
-        keys.forEach(function(key) {
-            var st = SOURCES[key].status;
-            if (st === 'loading') anyLoading = true;
-            if (st === 'soon') anySoon = true;
-            if (st === 'error') bad.push(SOURCES[key].label);
-        });
-        var named = 0;
-        var dots = keys.map(function(key) {
+        // Three fixed lines: what is fetching, a healthy-source tally, and what is stuck. Naming only the
+        // sources that are doing something keeps the panel short; 30 labelled dots used to wrap onto five
+        // rows and drag the whole bottom bar taller.
+        var busy = [], stalled = [], okCount = 0;
+        Object.keys(SOURCES).forEach(function(key) {
             var s = SOURCES[key];
-            var show = s.status === 'error' || ((s.status === 'loading' || s.status === 'soon') && named < 4);
-            if (show) named++;
-            return '<span class="src-item ' + s.status + (show ? ' named' : '') + '" title="' + escapeHtml(s.label) + '">' +
-                '<span class="dot ' + s.status + '"></span>' +
-                (show ? '<span class="src-name">' + escapeHtml(s.label) + '</span>' : '') +
-            '</span>';
-        }).join('');
-        el.innerHTML = '<div class="src-dots">' + dots + '</div><div class="src-foot"></div>';
-        if (refreshEl) el.querySelector('.src-foot').appendChild(refreshEl);
+            if (s.status === 'loading') { anyLoading = true; busy.push(s.label); }
+            else if (s.status === 'soon') { anySoon = true; busy.push(s.label); }
+            else if (s.status === 'error') stalled.push(s.label);
+            else if (s.status === 'ok') okCount++;
+        });
+        var articles = 0;
+        if (rawFeeds) Object.keys(rawFeeds).forEach(function(k) { articles += (rawFeeds[k] || []).length; });
+
+        function chips(names, cls) {
+            if (!names.length) return '<span class="src-none">–</span>';
+            var shown = names.slice(0, 3);
+            return shown.map(function(n) {
+                return '<span class="src-chip ' + cls + '"><span class="dot"></span>' + escapeHtml(n) + '</span>';
+            }).join('') + (names.length > 3 ? '<span class="src-none">+' + (names.length - 3) + '</span>' : '');
+        }
+
+        el.innerHTML =
+            '<div class="src-line"><span class="src-key">Refreshing:</span>' + chips(busy, 'busy') + '</div>' +
+            '<div class="src-line"><span class="src-key">Sources:</span>' +
+                '<span class="src-val">' + okCount + ' active with ' + articles + ' articles</span></div>' +
+            '<div class="src-line src-last"><span class="src-key">Stalled:</span>' + chips(stalled, 'bad') + '</div>';
+        if (refreshEl) el.querySelector('.src-last').appendChild(refreshEl);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
@@ -461,7 +467,7 @@
         var mins = Math.floor(secs / 60);
         var s = secs % 60;
         var time = mins > 0 ? mins + ':' + String(s).padStart(2, '0') : secs + 's';
-        refreshLabelEl.innerHTML = '<span class="refresh-prefix">news refresh in </span>' + time;
+        refreshLabelEl.innerHTML = '<span class="refresh-prefix">refresh in </span>' + time;
     }
     setInterval(updateRefreshRing, 1000);
     updateRefreshRing();
