@@ -922,14 +922,15 @@ body.hide-cursor { cursor: none; }
     display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
     transition: color 0.6s ease;            /* amber fades to green or red in place */
 }
-.src-chip.busy { color: var(--accent); }
+.src-chip.busy { color: var(--accent); animation: src-pulse 1.3s ease-in-out infinite; }
 .src-chip.ok { color: #4ade80; }
 .src-chip.bad { color: #f87171; }
+@keyframes src-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.42; } }
+.src-gap { flex: none; display: block; }
 .src-chip .dot {
     width: 7px; height: 7px; border-radius: 50%; flex: none;
     background: currentColor;                                     /* matches the chip's own colour */
 }
-.src-chip.busy .dot { animation: pulse-dot 1s ease-in-out infinite; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 /* ═══ TICKER ═══ */

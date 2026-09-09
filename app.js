@@ -162,6 +162,22 @@
     var BELT_GAP = 12;                 // must match the gap on .src-belt in style.css
     var beltEl = null, beltNone = null, beltOffset = 0, beltRaf = null, beltPrev = 0;
     var beltChips = {};                // source key -> the chip currently on the belt
+    var stalledList = [];              // what has fallen off the belt still failing, shown on line three
+
+    // Where the next item would appear, measured from the left edge of the visible track
+    function beltAppendX() {
+        var last = beltEl.lastElementChild;
+        return (last ? last.offsetLeft + last.offsetWidth + BELT_GAP : 0) - beltOffset;
+    }
+    // Pad the row out to the right edge so anything appended slides in rather than popping up mid-track
+    function beltPadToRight() {
+        var pad = beltEl.parentNode.clientWidth - beltAppendX();
+        if (pad <= 4) return;
+        var sp = document.createElement('span');
+        sp.className = 'src-gap';
+        sp.style.width = pad.toFixed(0) + 'px';
+        beltEl.appendChild(sp);
+    }
 
     function beltTick(ts) {
         beltRaf = null;
@@ -170,13 +186,26 @@
         beltPrev = ts;
         beltOffset += BELT_SPEED * dt;
 
-        var first;
+        var first, stalledChanged = false;
         while ((first = beltEl.firstElementChild)) {
             if (first.offsetLeft + first.offsetWidth - beltOffset > 0) break;      // still on screen
-            delete beltChips[first.getAttribute('data-key')];
+            var key = first.getAttribute('data-key');
+            var state = key ? first.className.replace('src-chip ', '') : '';
             beltOffset -= first.offsetWidth + BELT_GAP;
             beltEl.removeChild(first);
+            if (state === 'busy') {                    // still fetching: send it round again
+                beltPadToRight();
+                beltEl.appendChild(first);
+                continue;
+            }
+            if (key) delete beltChips[key];
+            if (state === 'bad') {                     // failed: hand it to the stalled list
+                stalledList.push({ key: key, label: first.textContent.trim() });
+                stalledChanged = true;
+            }
         }
+        if (stalledChanged) renderSourceStatus();
+
         if (!beltEl.firstElementChild) {                                           // idle: park and stop
             beltOffset = 0; beltPrev = 0;
             beltEl.style.transform = '';
@@ -192,10 +221,11 @@
         if (!beltEl) return;
         var chip = beltChips[key];
         if (chip && chip.isConnected) { chip.className = 'src-chip ' + state; return; }   // recolour in place
-        if (!beltEl.firstElementChild) {
-            beltOffset = -beltEl.parentNode.clientWidth;                           // enter from the right
-            beltPrev = 0;
-        }
+        // A source that had stalled is being tried again: take it off line three and put it back on the belt
+        var was = stalledList.length;
+        stalledList = stalledList.filter(function(s) { return s.key !== key; });
+        if (stalledList.length !== was) lastStatusSig = null;
+        beltPadToRight();
         chip = document.createElement('span');
         chip.className = 'src-chip ' + state;
         chip.setAttribute('data-key', key);
@@ -267,15 +297,16 @@
         var el = document.getElementById('source-status');
         if (!el) return;
         if (!beltEl || !beltEl.isConnected) buildStatusPanel();
-        var anyLoading = false, anySoon = false;
-        var stalled = [], okCount = 0;
+        var anyLoading = false, anySoon = false, okCount = 0;
         Object.keys(SOURCES).forEach(function(key) {
             var s = SOURCES[key];
             if (s.status === 'loading') anyLoading = true;
             else if (s.status === 'soon') anySoon = true;
-            else if (s.status === 'error') stalled.push(s.label);
             else if (s.status === 'ok') okCount++;
         });
+        // Line three is fed by the belt, not derived from status: a failure appears here only once its chip
+        // has drifted off the left, and leaves again the moment that source is retried.
+        var stalled = stalledList.map(function(s) { return s.label; });
         var articles = 0;
         if (rawFeeds) Object.keys(rawFeeds).forEach(function(k) { articles += (rawFeeds[k] || []).length; });
 
