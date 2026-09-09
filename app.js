@@ -32,6 +32,8 @@
         stromprisRefresh: 30 * 60 * 1000,
         feedRefresh: 5 * 60 * 1000,
         feedScrollInterval: 7000,
+        maxItemAgeHours: 48,       // news older than this leaves the feed pool...
+        minItemsPerSource: 3,      // ...unless it is among a source's newest few (regional feeds are slow)
         tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 14000,
@@ -119,7 +121,7 @@
         sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
         politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi',
             cardClass: 'police-tape',
-            noImg: function(item) { return policeEmoji(item._category); },
+            noImg: function(item) { return policeIcon(item._category); },
             noImgClass: 'police-img',
             heroNoImgClass: 'police-hero-img',
             topBadge: function(item) {
@@ -358,23 +360,39 @@
         return Math.floor(hrs / 24) + ' d siden';
     }
 
+    // Thousands grouped with a space, Norwegian style: 3 776
+    function fmtInt(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+
     function escapeHtml(str) {
         var d = document.createElement('div');
         d.textContent = str;
         return d.innerHTML;
     }
 
-    var POLICE_CAT_EMOJI = {
-        'Brann': '\uD83D\uDD25',
-        'Trafikk': '\uD83D\uDE97',
-        'Voldshendelse': '\uD83D\uDEA8',
-        'Tyveri': '\uD83D\uDD12',
-        'Ro og orden': '\uD83D\uDE94',
-        'Andre hendelser': '\uD83D\uDCCB',
+    // Line icons per incident category, stroked in the police blue on the card plate. Six of the twelve
+    // categories the log actually uses had no emoji before, so most incidents fell back to the beacon and the
+    // picture looked arbitrary. Stroke width, colour and size come from CSS; these are just the shapes.
+    var POLICE_ICON_PATHS = {
+        'Trafikk':         '<path d="M3.5 14.2l1.7-4.7A2 2 0 017.1 8.2h9.8a2 2 0 011.9 1.3l1.7 4.7v3.4h-17v-3.4z"/><path d="M3.5 14.2h17"/><circle cx="8" cy="17.6" r="1.6"/><circle cx="16" cy="17.6" r="1.6"/>',
+        'Ulykke':          '<path d="M2.5 12h4.2M5 9.6L7.4 12 5 14.4"/><path d="M21.5 12h-4.2M19 9.6L16.6 12 19 14.4"/><circle cx="12" cy="12" r="1.7"/><path d="M12 6.2v2.1M12 15.7v2.1M8.8 8.2l1.5 1.5M15.2 8.2l-1.5 1.5M8.8 15.8l1.5-1.5M15.2 15.8l-1.5-1.5"/>',
+        'Brann':           '<path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z"/>',
+        'Voldshendelse':   '<path d="M12 3l7 2.5v5.8c0 4.2-2.9 7.9-7 9.4-4.1-1.5-7-5.2-7-9.4V5.5L12 3z"/><path d="M12 8.8v4"/><circle cx="12" cy="15.9" r=".95" fill="currentColor" stroke="none"/>',
+        'Tyveri':          '<path d="M4.2 8.6h15.6l-1.2 11.1a1.5 1.5 0 01-1.5 1.3H6.9a1.5 1.5 0 01-1.5-1.3L4.2 8.6z"/><path d="M8.9 8.6V6.8a3.1 3.1 0 016.2 0v1.8"/>',
+        'Innbrudd':        '<rect x="4.8" y="10.8" width="14.4" height="10.2" rx="2"/><path d="M8.6 10.8V7.4a3.4 3.4 0 016.2-1.9"/>',
+        'Skadeverk':       '<rect x="7" y="9.2" width="7.6" height="11.6" rx="1.5"/><path d="M9.4 9.2V6.6A1.5 1.5 0 0110.9 5.1h1.3"/><circle cx="17.3" cy="5.6" r=".8" fill="currentColor" stroke="none"/><circle cx="19.6" cy="7.4" r=".8" fill="currentColor" stroke="none"/><circle cx="17.6" cy="9.4" r=".8" fill="currentColor" stroke="none"/>',
+        'Sj\u00F8':             '<path d="M4 14.6h16l-2.1 4a2 2 0 01-1.8 1.1H7.9a2 2 0 01-1.8-1.1l-2.1-4z"/><path d="M12 14.6V3.8l6.2 6.2H12"/>',
+        'Savnet':          '<circle cx="10.6" cy="10.6" r="6.1"/><path d="M15 15l5.4 5.4"/><circle cx="10.6" cy="8.8" r="1.6"/><path d="M7.9 14.1a3 3 0 015.4 0"/>',
+        'Redning':         '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3.6v5M12 15.4v5M3.6 12h5M15.4 12h5"/>',
+        'Ro og orden':     '<path d="M4.2 9.8h3.1l4.6-3.6v11.6l-4.6-3.6H4.2v-4.4z"/><path d="M15.4 9.4a4 4 0 010 5.2M18 6.9a7.6 7.6 0 010 10.2"/>',
+        'Andre hendelser': '<rect x="5.6" y="4.6" width="12.8" height="15.8" rx="1.7"/><path d="M9.4 9.2h5.2M9.4 12.6h5.2M9.4 16h3.1"/>',
+        _fallback:         '<path d="M7.6 20.4h8.8"/><rect x="6.8" y="12.6" width="10.4" height="5.6" rx="1.4"/><path d="M9.6 12.6v-2.3a2.4 2.4 0 014.8 0v2.3"/><path d="M12 5.6V3.4M6.4 7.9L5 6.5M17.6 7.9L19 6.5"/>',
     };
+    var POLICE_ICON_ALIAS = { 'Trafikkulykke': 'Ulykke', 'Arbeidsulykke': 'Ulykke', 'Ran': 'Tyveri', 'Trusler': 'Voldshendelse' };
 
-    function policeEmoji(category) {
-        return POLICE_CAT_EMOJI[category] || '\uD83D\uDEA8';
+    function policeIcon(category) {
+        var key = POLICE_ICON_ALIAS[category] || category;
+        return '<svg class="police-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+            (POLICE_ICON_PATHS[key] || POLICE_ICON_PATHS._fallback) + '</svg>';
     }
 
     /* ═══ CLOCK ═══ */
@@ -750,6 +768,19 @@
                     link: normLink(item.link || item.guid || ''),
                 };
             }).filter(function(a) { return a.title; });
+
+            // Low-volume feeds (NRK Rogaland spans ~5 days in 20 items) otherwise put days-old cards on the
+            // screen. Drop the stale tail, but always keep a few so a slow source still gets its turn.
+            rawFeeds[type].sort(function(a, b) { return (parseDate(b.pubDate) || 0) - (parseDate(a.pubDate) || 0); });
+            var itemCutoff = Date.now() - CONFIG.maxItemAgeHours * 3600e3;
+            var kept = rawFeeds[type].filter(function(it, i) {
+                return i < CONFIG.minItemsPerSource || !(parseDate(it.pubDate) < itemCutoff);
+            });
+            if (kept.length !== rawFeeds[type].length) {
+                console.log('[' + (meta ? meta.label : type) + '] ' + (rawFeeds[type].length - kept.length) +
+                    ' items older than ' + CONFIG.maxItemAgeHours + 'h dropped');
+            }
+            rawFeeds[type] = kept;
             dropNrkOverlap(type);
             console.log('[' + (meta ? meta.label : type) + '] rss2json \u2192 ' + rawFeeds[type].length + ' items');
             mergeFeedsAndRender();
@@ -1842,11 +1873,44 @@
         '</div>';
     }
 
+    // E39 tile: a stat tile, not a picture. Value, delta and sparkline each get their own band so the number
+    // is never read across the chart. One series, so no legend; the delta carries the week-on-week comparison.
+    function buildTrafficSpark(points, w, h) {
+        if (points.length < 2) return '';
+        var pad = 7, top = 8, bot = h - 7;   // pad leaves room for the end dot plus its ring
+        var max = Math.max.apply(null, points.map(function(p) { return p.y; })) || 1;
+        var px = function(p) { return (pad + p.x * (w - pad * 2)).toFixed(1); };
+        var py = function(p) { return (top + (1 - p.y / max) * (bot - top)).toFixed(1); };
+        var pts = points.map(function(p) { return px(p) + ',' + py(p); });
+        var last = points[points.length - 1];
+        return '<svg class="tfc-svg" viewBox="0 0 ' + w + ' ' + h + '" xmlns="http://www.w3.org/2000/svg">' +
+            '<path class="tfc-area" d="M' + px(points[0]) + ',' + h + ' L' + pts.join(' L') + ' L' + px(last) + ',' + h + ' Z"/>' +
+            '<polyline class="tfc-line" points="' + pts.join(' ') + '"/>' +
+            '<circle class="tfc-dot" cx="' + px(last) + '" cy="' + py(last) + '" r="3.6"/>' +
+        '</svg>';
+    }
+
+    function buildTrafficCard(size) {
+        var big = size === 'large';
+        var delta = '';
+        if (trafficState.vsWeekPct != null) {
+            var up = trafficState.vsWeekPct >= 0;
+            delta = '<div class="tfc-delta"><span class="tfc-arrow">' + (up ? '\u25B2' : '\u25BC') + '</span>' +
+                Math.abs(trafficState.vsWeekPct) + '\u202F% mot ' + escapeHtml(trafficState.vsWeekRef) + '</div>';
+        }
+        return '<div class="tfc' + (big ? ' tfc-lg' : '') + '">' +
+            (big ? '<div class="tfc-label">E39 J\u00E5tten \u00B7 n\u00E5</div>' : '') +
+            '<div class="tfc-value">' + fmtInt(trafficState.currentVol || 0) + '<span class="tfc-unit">kjt/t</span></div>' +
+            (big ? delta : '') +
+            '<div class="tfc-spark">' + buildTrafficSpark(hourlyPoints(trafficHours, 'total'), big ? 400 : 220, big ? 104 : 64) + '</div>' +
+            (big ? '<div class="tfc-ticks"><span>00</span><span>12</span><span>23</span></div>' : '') +
+        '</div>';
+    }
+
     function getSparkCard(type, size) {
         var svg, emoji, value, unit, theme;
         if (type === 'trafikk') {
-            svg = buildSparkCardSvg(hourlyPoints(trafficHours, 'total'), hourlyPoints(trafficLastWeek, 'total'), 400, 200, '#f97316', { gradientId: 'traffic-fill' });
-            emoji = '\uD83D\uDE97'; value = trafficState.currentVol || ''; unit = 'kjt/t'; theme = 'sc-traffic';
+            return buildTrafficCard(size);
         } else if (type === 'sykkel') {
             var bikePrimary = bikeCountHours.length ? bikeCountHours : bikeCountLastWeek;
             var bikeRef = bikeCountHours.length ? bikeCountLastWeek : null;
@@ -2074,25 +2138,16 @@
             else trend = 'Stabil trafikk';
         }
 
-        // vs last week
-        var vsWeek = '';
+        // vs the same hour last week (the delta shown on the tile)
+        var vsWeekPct = null;
         if (trafficLastWeek.length) {
             var sameHour = null;
             for (var i = 0; i < trafficLastWeek.length; i++) {
                 if (trafficLastWeek[i].hour === cur.hour) { sameHour = trafficLastWeek[i]; break; }
             }
             if (sameHour && sameHour.total > 0) {
-                var diff = Math.round(((vol - sameHour.total) / sameHour.total) * 100);
-                vsWeek = (diff >= 0 ? '+' : '') + diff + '% vs forrige ' + dayN[new Date().getDay()].toLowerCase();
+                vsWeekPct = Math.round(((vol - sameHour.total) / sameHour.total) * 100);
             }
-        }
-
-        // Direction insight
-        var dirLabel = '';
-        if (hour < 12) {
-            dirLabel = 'Mot Stavanger: ' + cur.north;
-        } else {
-            dirLabel = 'Mot Sandnes: ' + cur.south;
         }
 
         // Dynamic title
@@ -2107,19 +2162,38 @@
             title = level + ' p\u00e5 E39 J\u00e5tten';
         }
 
-        // Description (HTML with line breaks and emojis)
-        var descLines = [];
-        descLines.push('\u2B06\uFE0F Mot Stavanger: ' + cur.north + ' kjt/t');
-        descLines.push('\u2B07\uFE0F Mot Sandnes: ' + cur.south + ' kjt/t');
-        if (trend) descLines.push((trend === 'Trafikken \u00f8ker' ? '\uD83D\uDD3A' : trend === 'Trafikken avtar' ? '\uD83D\uDD3B' : '\u27A1\uFE0F') + ' ' + trend);
-        if (vsWeek) descLines.push('\uD83D\uDCC5 ' + vsWeek);
+        // Description: a two-row direction readout. One hue for both bars, so the row labels carry identity
+        // rather than colour; values are tabular because they form a column. (Was four emoji bullet lines.)
+        // Bars run against today's busiest hour in one direction, not against each other: scaled to each other
+        // the heavier direction is always full, which implies a limit that isn't there.
+        var dirPeak = 0;
+        trafficHours.forEach(function(h) { dirPeak = Math.max(dirPeak, h.north, h.south); });
+        if (!dirPeak) dirPeak = Math.max(cur.north, cur.south) || 1;
+        function dirRow(name, value) {
+            return '<div class="tfx-row"><span class="tfx-dir">' + name + '</span>' +
+                '<span class="tfx-val">' + fmtInt(value) + '</span>' +
+                '<span class="tfx-bar"><i style="width:' + (value / dirPeak * 100).toFixed(1) + '%"></i></span></div>';
+        }
+        var noteParts = [];
+        if (trend) noteParts.push(trend);
+        noteParts.push(fmtInt(vol) + ' kjt/t totalt');
+        noteParts.push('søyler mot dagens topptime (' + fmtInt(dirPeak) + ')');
+        var descHtml = '<div class="tfx">' +
+            dirRow('Mot Stavanger', cur.north) +
+            dirRow('Mot Sandnes', cur.south) +
+            '<div class="tfx-note">' + noteParts.join(' \u00B7 ') + '</div>' +
+        '</div>';
 
         trafficState = {
             level: level,
             trend: trend,
             label: title,
-            descHtml: descLines.join('<br>'),
+            descHtml: descHtml,
             currentVol: vol,
+            north: cur.north,
+            south: cur.south,
+            vsWeekPct: vsWeekPct,
+            vsWeekRef: 'forrige ' + dayN[new Date().getDay()].toLowerCase(),
         };
     }
 
