@@ -26,6 +26,7 @@
         finalShowEveryMs: 5 * 60 * 1000,            // after the finish: confetti + rocket + result panel this often, round the clock
         finalShowConfettiMs: 60 * 1000,
         finalShowPanelMs: 45 * 1000,
+        finalPulseMs: 8 * 1000,                     // after the finish: the distance re-counts up to the final figure this often
         finalPerDay: [210, 170, 177, 172, 124, 87], // km per race day; used when the lap table is unavailable (korido blocks IPs post-race)
         marathonKm: 42.195,
         lapsRefresh: 5 * 60 * 1000,
@@ -610,8 +611,15 @@
         setTimeout(shutdownVideo, wasRunning ? CFG.finishTakeoverMs + 60 * 1000 : 0);
         lastFinalShow = Date.now() - CFG.finalShowEveryMs + 90 * 1000;   // first result show 90 s after entering final mode
         setInterval(function() { if (videoOff && st.hasData && Date.now() - lastFinalShow >= CFG.finalShowEveryMs) finalShow(); }, 5000);
+        setInterval(idlePulse, CFG.finalPulseMs);
         if (st.hasData) renderBanner();
         console.log('[' + LABEL + '] final mode');
+    }
+    // Idle pulse: the final distance counts up the last three laps again and bumps, so the banner keeps looking alive.
+    function idlePulse() {
+        if (!st.hasData || st.km == null) return;
+        shownKm = st.km - CFG.lapKm * 3;
+        animateKm(st.km);
     }
     function finalShow() {
         lastFinalShow = Date.now();
@@ -717,13 +725,13 @@
         renderBanner(); detectEvents();
     }
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'l' || e.key === 'L') simulateLap();
-        else if (e.key === 'm' || e.key === 'M') simulateMilestone();
+        if (e.key === 'l' || e.key === 'L') { if (st.finished) { if (st.hasData && videoOff) finalShow(); } else simulateLap(); }
+        else if (e.key === 'm' || e.key === 'M') { if (st.finished) { if (st.hasData && videoOff) finalShow(); } else simulateMilestone(); }
         else if (e.key === 'f' || e.key === 'F') { if (st.hasData) celebrateFinish(); }
         else if (e.key === 'p' || e.key === 'P') { if (st.hasData && videoOff) finalShow(); }
         else if (e.key === 'v' || e.key === 'V') { if (video) { videoBig = !videoBig; video.classList.toggle('big', videoBig); positionVideo(); } }
     });
-    if (demo) setInterval(simulateLap, 25000);
+    if (demo && !st.finished) setInterval(simulateLap, 25000);
 
     /* ── go ── */
     initVideo();
