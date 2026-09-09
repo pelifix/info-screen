@@ -34,6 +34,11 @@
         feedScrollInterval: 7000,
         maxItemAgeHours: 48,       // news older than this leaves the feed pool...
         minItemsPerSource: 3,      // ...unless it is among a source's newest few (regional feeds are slow)
+        // tu.no serves the strip itself at this URL (image/jpeg, one per date). No CORS needed for an <img>.
+        comicUrl: 'https://www.tu.no/api/widgets/comics?name=lunch&date=',
+        comicCredit: 'Lunch · Børge Lund · tu.no',
+        comicRefresh: 60 * 60 * 1000,
+        paadagRefresh: 6 * 60 * 60 * 1000,
         tickerSpeed: 100,
         slideInterval: 12000,
         heroInterval: 14000,
@@ -84,6 +89,8 @@
         tu:          { label: 'TU',          status: 'pending', refresh: CONFIG.feedRefresh,      proxy: 'rss2json' },
         strompris:   { label: 'Strøm',       status: 'pending', refresh: CONFIG.stromprisRefresh, proxy: 'rss2json' },
         magasin:     { label: 'Magasin',     status: 'pending', refresh: 6 * 60 * 60 * 1000,      proxy: 'none' },       // NVE, weekly (Wed 13:00), sends CORS
+        lunch:       { label: 'Lunch',       status: 'pending', refresh: CONFIG.comicRefresh,     proxy: 'none' },       // image only, nothing to fetch as data
+        paadag:      { label: 'Historie',    status: 'pending', refresh: CONFIG.paadagRefresh,    proxy: 'none' },       // no.wikipedia, origin=* so no proxy
         trafikk:     { label: 'Trafikk',     status: 'pending', refresh: CONFIG.trafficRefresh,   proxy: 'none' },
         sykkel:      { label: 'Sykkel',      status: 'pending', refresh: CONFIG.bikeCountRefresh, proxy: 'jsonp' },
         marked:      { label: 'Marked',      status: 'pending', refresh: CONFIG.financeRefresh,   proxy: 'cors' },
@@ -117,6 +124,8 @@
         tu:          { srcKey: 'tu',          label: 'TU',          color: 'src-tu' },
         strompris:   { srcKey: 'strompris',   label: 'Strømpris',   color: 'src-strompris' },
         magasin:     { srcKey: 'magasin',     label: 'Magasinfylling', color: 'src-magasin' },
+        lunch:       { srcKey: 'lunch',       label: 'Lunch',       color: 'src-tu', cardClass: 'comic-card' },
+        paadag:      { srcKey: 'paadag',      label: 'På denne dagen', color: 'src-paadag' },
         trafikk:     { srcKey: 'trafikk',     label: 'E39 Trafikk', color: 'src-trafikk' },
         sykkel:      { srcKey: 'sykkel',      label: 'Sykkeldata',  color: 'src-sykkel' },
         politi:      { srcKey: 'politi',      label: 'Politi',      color: 'src-politi',
@@ -135,6 +144,9 @@
             },
         },
     };
+
+    var HERO_PIN = { lunch: 1 };    // sources guaranteed a hero slot when they have an item
+    var FEED_SKIP = { lunch: 1 };   // sources kept out of the two-column feed
 
     var lastRefreshTime = null;
 
@@ -457,6 +469,9 @@
     rawFeeds.trafikk = [];
     rawFeeds.sykkel = [];
     rawFeeds.politi = [];
+    rawFeeds.magasin = [];
+    rawFeeds.lunch = [];
+    rawFeeds.paadag = [];
 
     function renderHero(item) {
         if (!item) return;
@@ -469,11 +484,14 @@
         var isSpark = item.image && item.image.indexOf('spark:') === 0;
         var noImgCls = meta && meta.heroNoImgClass ? ' ' + meta.heroNoImgClass : '';
         var noImgContent = meta && meta.noImg ? meta.noImg(item) : '\u{1F4F0}';
-        var imgContent = isSpark
-            ? getSparkCard(item.image.slice(6), 'large')
-            : item.image
-                ? '<img src="' + escapeHtml(item.image) + '" alt="">'
-                : '<div class="hero-no-img' + noImgCls + '">' + noImgContent + '</div>';
+        var isComic = item.image && item.image.indexOf('comic:') === 0;
+        var imgContent = isComic
+            ? buildComicCard(item.image.slice(6))
+            : isSpark
+                ? getSparkCard(item.image.slice(6), 'large')
+                : item.image
+                    ? '<img src="' + escapeHtml(item.image) + '" alt="">'
+                    : '<div class="hero-no-img' + noImgCls + '">' + noImgContent + '</div>';
         var customBadge = meta && meta.topBadge ? meta.topBadge(item) : null;
         var topBadgeText = customBadge ? customBadge.text : 'TOPP';
         var topBadgeClass = customBadge ? customBadge.cls : 'hero-top-badge';
@@ -497,6 +515,10 @@
         newCard.innerHTML = html;
         heroEl.insertBefore(newCard, heroEl.querySelector('.hero-divider'));
         void newCard.offsetWidth;
+
+        // Today's strip may not be published yet (or it is a weekend); step back a day at a time.
+        var comicImg = newCard.querySelector('.comic-img');
+        if (comicImg) comicImg.onerror = comicStepBack;
 
         // Shrink the hero description a little if it overflows, but keep it readable from across the room;
         // whatever still doesn't fit fades out at the bottom instead of being cut mid-line.
@@ -681,6 +703,8 @@
         var heroSeen = {};
         var heroTitles = {};
         var heroSkip = { sykkel: 1 };
+        // A 180px thumbnail of a comic strip is unreadable, so it stays out of the two-column feed
+
         for (var h = 0; h < merged.length && heroItems.length < CONFIG.heroCount; h++) {
             var src = merged[h].source || '';
             if (heroSkip[src] || heroSeen[src]) continue;
@@ -690,6 +714,12 @@
             heroTitles[heroKey] = true;
             heroItems.push(merged[h]);
         }
+        // The comic is only readable at hero size, so it always gets a slot even when the news is fresher
+        Object.keys(HERO_PIN).forEach(function(src) {
+            if (heroSeen[src] || !rawFeeds[src] || !rawFeeds[src].length) return;
+            heroSeen[src] = true;
+            heroItems.push(rawFeeds[src][0]);
+        });
 
         // Deduplicate by normalized title for feed + ticker
         var seen = {};
@@ -705,7 +735,9 @@
         // Feed: interleave sources for variety
         var heroSet = {};
         heroItems.forEach(function(item) { heroSet[item.title.toLowerCase().trim()] = true; });
-        var remaining = all.filter(function(item) { return !heroSet[item.title.toLowerCase().trim()]; });
+        var remaining = all.filter(function(item) {
+            return !heroSet[item.title.toLowerCase().trim()] && !FEED_SKIP[item.source || ''];
+        });
         var bySource = {};
         remaining.forEach(function(item) {
             var s = item.source || 'unknown';
@@ -1911,10 +1943,23 @@
         '</div>';
     }
 
+    // Calendar leaf for "På denne dagen": the date is the picture
+    var paadagState = { day: '', month: '', count: 0 };
+    function buildPaadagCard(size) {
+        var big = size === 'large';
+        return '<div class="pdc' + (big ? ' pdc-lg' : '') + '">' +
+            '<div class="pdc-label">På denne dagen</div>' +
+            '<div class="pdc-day">' + paadagState.day + '</div>' +
+            '<div class="pdc-month">' + escapeHtml(paadagState.month) + '</div>' +
+        '</div>';
+    }
+
     function getSparkCard(type, size) {
         var svg, emoji, value, unit, theme;
         if (type === 'trafikk') {
             return buildTrafficCard(size);
+        } else if (type === 'paadag') {
+            return buildPaadagCard(size);
         } else if (type === 'sykkel') {
             var bikePrimary = bikeCountHours.length ? bikeCountHours : bikeCountLastWeek;
             var bikeRef = bikeCountHours.length ? bikeCountLastWeek : null;
@@ -2113,6 +2158,119 @@
     }
     setTimeout(loadParking, 32000);
     setInterval(loadParking, SOURCES.parkering.refresh);
+
+    /* ═══ LUNCH (comic strip, tu.no) ═══
+       tu.no serves the strip as a plain JPEG per date, so an <img> can load it without a proxy. It is 3:1 and
+       only legible at hero width, hence HERO_PIN and FEED_SKIP: always a hero card, never a feed thumbnail. */
+    var comicOffset = 0;        // days back from today; sticks once a working strip is found
+    function comicDate() { return fmtDateLocal(new Date(Date.now() - comicOffset * 86400000)); }
+    function buildComicCard() {
+        return '<img class="comic-img" src="' + escapeHtml(CONFIG.comicUrl + comicDate()) + '" alt="Lunch">' +
+            '<div class="comic-credit">' + escapeHtml(CONFIG.comicCredit) + '</div>';
+    }
+    function comicStepBack(e) {
+        var img = (e && e.target) || this;
+        if (comicOffset >= 4) {
+            console.log('[' + SOURCES.lunch.label + '] tu.no → no strip in the last 4 days');
+            setSource('lunch', 'error');
+            return;
+        }
+        comicOffset++;                                  // weekend or not published yet
+        img.src = CONFIG.comicUrl + comicDate();
+        console.log('[' + SOURCES.lunch.label + '] tu.no → falling back to ' + comicDate());
+    }
+    function loadComic() {
+        var pub = new Date();
+        pub.setHours(6, 0, 0, 0);                       // the strip is a morning thing
+        rawFeeds.lunch = [{
+            title: 'Lunch', pubDate: pub.toISOString(), image: 'comic:lunch', source: 'lunch', categories: [],
+        }];
+        console.log('[' + SOURCES.lunch.label + '] tu.no → ' + comicDate());
+        setSource('lunch', 'ok');
+        mergeFeedsAndRender();
+    }
+    setTimeout(loadComic, 6000);
+    setInterval(loadComic, CONFIG.comicRefresh);
+
+    /* ═══ PÅ DENNE DAGEN (no.wikipedia) ═══
+       The Norwegian on-this-day REST feed is empty, but the date article carries "Norsk historie",
+       "Historie" and "Navnedag" sections. action=parse with origin=* sends CORS, so no proxy. ~8 KB. */
+    var PAADAG_MAX = 4;
+    function wikiClean(s) {
+        return s.replace(/<ref[^>]*\/>/g, '')
+            .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, '')
+            .replace(/\{\{[^{}]*\}\}/g, '')
+            .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1')
+            .replace(/\[https?:\/\/\S+\s+([^\]]*)\]/g, '$1')
+            .replace(/'''?/g, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+    function wikiSections(text) {
+        var out = {}, cur = null;
+        text.split('\n').forEach(function(line) {
+            var h = /^==+\s*(.+?)\s*==+\s*$/.exec(line);
+            if (h) { cur = h[1]; if (!out[cur]) out[cur] = []; return; }
+            if (cur && line.charAt(0) === '*') out[cur].push(line);
+        });
+        return out;
+    }
+    function paadagRows(bullets, norsk) {
+        var rows = [];
+        (bullets || []).forEach(function(b) {
+            var m = /^(\d{3,4})\s*[–—-]\s*(.+)$/.exec(wikiClean(b.replace(/^\*+\s*/, '')));
+            if (m && m[2].length > 8) rows.push({ year: m[1], text: m[2], norsk: norsk });
+        });
+        return rows.reverse();                          // the article lists oldest first; lead with the recent
+    }
+    async function loadPaaDagen() {
+        var now = new Date();
+        var page = now.getDate() + '. ' + monN[now.getMonth()];
+        var url = 'https://no.wikipedia.org/w/api.php?action=parse&page=' + encodeURIComponent(page) +
+            '&prop=wikitext&format=json&origin=*';
+        try {
+            var data = await sourceFetch('paadag', url, { skipStatus: true, cacheKey: 'dev:paadag:' + page });
+            var wikitext = data && data.parse && data.parse.wikitext && data.parse.wikitext['*'];
+            if (!wikitext) throw new Error('no wikitext');
+            var sec = wikiSections(wikitext);
+            var rows = paadagRows(sec['Norsk historie'], true).concat(paadagRows(sec['Historie'], false));
+            if (!rows.length) throw new Error('no dated entries');
+            rows = rows.slice(0, PAADAG_MAX);
+
+            var navn = '';
+            (sec['Navnedag'] || []).forEach(function(b) {
+                var t = wikiClean(b.replace(/^\*+\s*/, ''));
+                if (/^Norge\s*:/i.test(t)) navn = t.replace(/^Norge\s*:\s*/i, '').replace(/\.$/, '');
+            });
+
+            var head = rows[0];
+            var rest = rows.slice(1).map(function(r) {
+                return '<div class="pdd-row"><span class="pdd-year">' + r.year + '</span>' +
+                    '<span class="pdd-text">' + escapeHtml(r.text) + (r.norsk ? '<span class="pdd-no">Norge</span>' : '') + '</span></div>';
+            }).join('');
+            paadagState.day = now.getDate();
+            paadagState.month = monN[now.getMonth()];
+            paadagState.count = rows.length;
+            rawFeeds.paadag = [{
+                title: head.year + ' · ' + head.text,
+                descHtml: '<div class="pdd">' + rest +
+                    (navn ? '<div class="pdd-note">Navnedag i Norge: ' + escapeHtml(navn) + '</div>' : '') + '</div>',
+                pubDate: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 5, 0, 0).toISOString(),
+                image: 'spark:paadag',
+                source: 'paadag',
+                categories: [page],
+            }];
+            console.log('[' + SOURCES.paadag.label + '] no.wikipedia → ' + page + ', ' + rows.length + ' entries');
+            mergeFeedsAndRender();
+            setSource('paadag', 'ok');
+        } catch (e) {
+            console.log('[' + SOURCES.paadag.label + '] no.wikipedia → ERROR ' + e.message);
+            setSource('paadag', 'error');
+        }
+    }
+    setTimeout(loadPaaDagen, 34000);
+    setInterval(loadPaaDagen, CONFIG.paadagRefresh);
 
     /* ═══ E39 TRAFFIC ═══ */
     var trafficHours = [];

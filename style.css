@@ -18,6 +18,7 @@
     --src-sykkel: #10b981;
     --src-politi: #60a5fa;
     --src-magasin: #2dd4bf;
+    --src-paadag: #c8a97e;
     --bg-deep: #08090c;
     --bg-panel: #0f1115;
     --bg-card: #1a1e28;
@@ -128,6 +129,7 @@ body.hide-cursor { cursor: none; }
 .hero-badge.src-trafikk { background: var(--src-trafikk); color: var(--bg-deep); }
 .hero-badge.src-politi { background: var(--src-politi); color: var(--bg-deep); }
 .hero-badge.src-magasin { background: var(--src-magasin); color: var(--bg-deep); }
+.hero-badge.src-paadag { background: var(--src-paadag); color: var(--bg-deep); }
 
 .hero-text {
     display: flex; flex-direction: column;
@@ -152,6 +154,7 @@ body.hide-cursor { cursor: none; }
 .hero-source.src-trafikk { color: var(--src-trafikk); }
 .hero-source.src-politi { color: var(--src-politi); }
 .hero-source.src-magasin { color: var(--src-magasin); }
+.hero-source.src-paadag { color: var(--src-paadag); }
 .hero-top-badge {
     font-family: var(--font-display); letter-spacing: var(--display-spacing);
     font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
@@ -267,6 +270,7 @@ body.hide-cursor { cursor: none; }
 .article-source.src-sykkel, .article-source-overlay.src-sykkel { color: var(--src-sykkel); }
 .article-source.src-politi, .article-source-overlay.src-politi { color: var(--src-politi); }
 .article-source.src-magasin, .article-source-overlay.src-magasin { color: var(--src-magasin); }
+.article-source.src-paadag, .article-source-overlay.src-paadag { color: var(--src-paadag); }
 
 .article-title {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 1.15rem; font-weight: var(--display-weight);
@@ -294,6 +298,7 @@ body.hide-cursor { cursor: none; }
 .article-latest.src-sykkel { border-left-color: var(--src-sykkel); }
 .article-latest.src-politi { border-left-color: var(--src-politi); }
 .article-latest.src-magasin { border-left-color: var(--src-magasin); }
+.article-latest.src-paadag { border-left-color: var(--src-paadag); }
 .article-badges {
     position: absolute; top: 4px; left: 4px;
     display: flex; gap: 4px; align-items: center; z-index: 2;
@@ -446,6 +451,61 @@ body.hide-cursor { cursor: none; }
 .spark-card-unit { font-weight: 500; }
 .sc-elec .spark-card-unit { color: rgba(56, 189, 248, 0.6); }
 .sc-bike .spark-card-unit { color: rgba(16, 185, 129, 0.6); }
+
+/* ═══ LUNCH COMIC (full-bleed hero card) ═══
+   The strip is 3:1, so it gets the whole hero: no text column, white plate, credit along the bottom. */
+.hero-card.comic-card { grid-template-columns: 1fr; padding: 0; }
+.hero-card.comic-card .hero-text { display: none; }
+.comic-card .hero-img-wrap { background: #fff; border-radius: var(--radius); }
+.comic-card .hero-top-badge { display: none; }         /* white on white, and it says nothing here */
+/* Two classes, so this beats `.hero-img-wrap img { object-fit: cover }` and letterboxes instead of cropping */
+.hero-img-wrap .comic-img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    animation: none;                                   /* no Ken Burns on a comic */
+    padding: 12px 12px 30px; box-sizing: border-box;
+}
+.comic-credit {
+    position: absolute; right: 0; bottom: 0; z-index: 2; padding: 6px 18px 9px;
+    font-family: var(--font-display); font-size: 0.76rem; letter-spacing: 1px;
+    color: rgba(0, 0, 0, 0.45);                        /* the plate is white, so ink not paper */
+}
+
+/* ═══ PÅ DENNE DAGEN ═══ */
+.pdc {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    background: linear-gradient(150deg, #241d14 0%, #322718 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.pdc-label {
+    font-family: var(--font-display); font-weight: var(--display-weight); font-size: 0.55rem;
+    letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 4px;
+}
+.pdc-lg .pdc-label { font-size: 0.8rem; letter-spacing: 3px; margin-bottom: 10px; }
+.pdc-day {
+    font-family: var(--font-display); font-weight: 800; font-size: 2.6rem; line-height: 0.9;
+    color: var(--src-paadag);
+}
+.pdc-lg .pdc-day { font-size: 7rem; }
+.pdc-month {
+    font-family: var(--font-display); font-weight: var(--display-weight); font-size: 0.72rem;
+    letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.55);
+}
+.pdc-lg .pdc-month { font-size: 1.4rem; letter-spacing: 4px; }
+
+.pdd { display: flex; flex-direction: column; gap: 0.5em; }
+.pdd-row { display: grid; grid-template-columns: 3.4em 1fr; gap: 0.7em; align-items: baseline; }
+.pdd-year {
+    font-family: var(--font-display); font-weight: 700; color: var(--src-paadag);
+    font-variant-numeric: tabular-nums; text-align: right;
+}
+.pdd-text { color: var(--text-secondary); }
+.pdd-no {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.6em; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--src-paadag);
+    border: 1px solid rgba(200,169,126,0.45); border-radius: 4px;
+    padding: 0.1em 0.4em; margin-left: 0.5em; white-space: nowrap;
+}
+.pdd-note { color: var(--text-dim); font-size: 0.82em; margin-top: 0.2em; }
 
 /* ═══ E39 TRAFFIC STAT TILE ═══
    Label, value, delta and sparkline each own a band, so the number is never read across the chart.
