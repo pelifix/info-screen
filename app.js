@@ -173,15 +173,22 @@
     function renderSourceStatus() {
         var el = document.getElementById('source-status');
         if (!el) return;
-        var anyLoading = false, anySoon = false;
+        var anyLoading = false, anySoon = false, bad = [];
         var refreshEl = el.querySelector('.refresh-label');
-        el.innerHTML = Object.keys(SOURCES).map(function(key) {
+        // 30 labelled dots wrapped to five rows and dragged the whole bottom bar taller, so the names are
+        // only spelled out for what is actually broken. Everything else is one row of bare dots.
+        var dots = Object.keys(SOURCES).map(function(key) {
             var s = SOURCES[key];
             if (s.status === 'loading') anyLoading = true;
             if (s.status === 'soon') anySoon = true;
-            return '<div class="source-dot"><div class="dot ' + s.status + '"></div>' + s.label + '</div>';
+            if (s.status === 'error') bad.push(s.label);
+            return '<span class="dot ' + s.status + '" title="' + escapeHtml(s.label) + '"></span>';
         }).join('');
-        if (refreshEl) el.appendChild(refreshEl);
+        var badText = bad.length > 3 ? bad.slice(0, 3).join(', ') + ' +' + (bad.length - 3) : bad.join(', ');
+        el.innerHTML = '<div class="src-dots">' + dots + '</div><div class="src-foot">' +
+            (bad.length ? '<span class="src-bad"><span class="dot"></span>' + escapeHtml(badText) + '</span>' : '') +
+            '</div>';
+        if (refreshEl) el.querySelector('.src-foot').appendChild(refreshEl);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
