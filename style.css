@@ -906,8 +906,12 @@ body.hide-cursor { cursor: none; }
 .src-copy::after { content: ''; width: 30px; flex: none; }
 .src-val { color: var(--text-secondary); white-space: nowrap; }
 .src-none { color: var(--text-dim); }
-.src-chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.src-chip {
+    display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+    transition: color 0.6s ease;            /* amber fades to green or red in place */
+}
 .src-chip.busy { color: var(--accent); }
+.src-chip.ok { color: #4ade80; }
 .src-chip.bad { color: #f87171; }
 .src-chip .dot {
     width: 7px; height: 7px; border-radius: 50%; flex: none;

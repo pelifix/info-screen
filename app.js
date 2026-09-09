@@ -150,8 +150,37 @@
 
     var lastRefreshTime = null;
 
+    /* The top status line is an activity strip rather than a snapshot: a source appears in amber while it
+       fetches, turns green or red in place when it finishes, and a green entry is dropped once it has had
+       time to drift off the left edge. Red entries stay while the source is still failing. */
+    var ACTIVITY_KEEP_MS = 14000;      // roughly one traversal of the strip at the drift speed
+    var activity = [];                 // [{ key, label, state: busy|ok|bad, at }], oldest first
+
+    function activityEntry(key) {
+        for (var i = 0; i < activity.length; i++) if (activity[i].key === key) return activity[i];
+        return null;
+    }
+    function noteActivity(key, status) {
+        var state = status === 'loading' ? 'busy' : status === 'ok' ? 'ok' : status === 'error' ? 'bad' : null;
+        if (!state) return;            // 'soon' is only a hint that a refresh is due, not a fetch
+        var e = activityEntry(key);
+        if (e) { e.state = state; e.at = Date.now(); }
+        else activity.push({ key: key, label: SOURCES[key].label, state: state, at: Date.now() });
+    }
+    function pruneActivity() {
+        var cut = Date.now() - ACTIVITY_KEEP_MS, before = activity.length;
+        activity = activity.filter(function(e) {
+            if (e.state === 'busy') return true;
+            if (e.state === 'bad') return SOURCES[e.key] && SOURCES[e.key].status === 'error';
+            return e.at > cut;
+        });
+        return activity.length !== before;
+    }
+    setInterval(function() { if (pruneActivity()) renderSourceStatus(); }, 2000);
+
     function setSource(key, status) {
         SOURCES[key].status = status;
+        noteActivity(key, status);
         if (status === 'ok') lastRefreshTime = new Date();
         // Schedule pre-refresh glow 8s before next refresh
         if (status === 'ok' || status === 'error') {
@@ -188,20 +217,21 @@
         // Three fixed lines: what is fetching, a healthy-source tally, and what is stuck. Naming only the
         // sources that are doing something keeps the panel short; 30 labelled dots used to wrap onto five
         // rows and drag the whole bottom bar taller.
-        var busy = [], stalled = [], okCount = 0;
+        var stalled = [], okCount = 0;
         Object.keys(SOURCES).forEach(function(key) {
             var s = SOURCES[key];
-            if (s.status === 'loading') { anyLoading = true; busy.push(s.label); }
-            else if (s.status === 'soon') { anySoon = true; busy.push(s.label); }
+            if (s.status === 'loading') anyLoading = true;
+            else if (s.status === 'soon') anySoon = true;
             else if (s.status === 'error') stalled.push(s.label);
             else if (s.status === 'ok') okCount++;
         });
         var articles = 0;
         if (rawFeeds) Object.keys(rawFeeds).forEach(function(k) { articles += (rawFeeds[k] || []).length; });
 
-        // Rebuild only when the content really changed: setSource fires constantly, and a rebuild would
-        // restart the drift animation every time.
-        var sig = busy.join('|') + '#' + stalled.join('|') + '#' + okCount + '#' + articles;
+        // Rebuild only when the set of entries changed, never on a colour change alone: setSource fires
+        // constantly and a rebuild would restart the drift animation. Colours are patched in place below.
+        var sig = activity.map(function(e) { return e.key; }).join('|') + '#' +
+            stalled.join('|') + '#' + okCount + '#' + articles;
         if (sig !== lastStatusSig) {
             lastStatusSig = sig;
 
@@ -211,6 +241,13 @@
                     return '<span class="src-chip ' + cls + '"><span class="dot"></span>' + escapeHtml(n) + '</span>';
                 }).join('');
             }
+            function activityChips() {
+                if (!activity.length) return '<span class="src-none">–</span>';
+                return activity.map(function(e) {
+                    return '<span class="src-chip ' + e.state + '" data-key="' + escapeHtml(e.key) + '">' +
+                        '<span class="dot"></span>' + escapeHtml(e.label) + '</span>';
+                }).join('');
+            }
             function line(icon, iconCls, inner, extraCls) {
                 return '<div class="src-line' + (extraCls || '') + '">' +
                     '<svg class="src-ico ' + iconCls + '" viewBox="0 0 24 24" aria-hidden="true">' + SRC_ICONS[icon] + '</svg>' +
@@ -218,7 +255,7 @@
             }
 
             el.innerHTML =
-                line('refresh', busy.length ? 'busy' : '', chips(busy, 'busy')) + '</div>' +
+                line('refresh', anyLoading ? 'busy' : '', activityChips()) + '</div>' +
                 line('layers', '', '<span class="src-val">' + okCount + ' aktive · ' + articles + ' artikler</span>') + '</div>' +
                 line('alert', stalled.length ? 'bad' : '', chips(stalled, 'bad'), ' src-last') +
                 '</div>';
@@ -234,6 +271,16 @@
                 drift.classList.add('scrolling');
             });
         }
+
+        // Colour only: patch both drift copies in place so the animation keeps running
+        var stateByKey = {};
+        activity.forEach(function(e) { stateByKey[e.key] = e.state; });
+        el.querySelectorAll('.src-chip[data-key]').forEach(function(node) {
+            var st = stateByKey[node.getAttribute('data-key')];
+            if (st && node.className !== 'src-chip ' + st) node.className = 'src-chip ' + st;
+        });
+        var refIcon = el.querySelector('.src-ico');
+        if (refIcon) refIcon.classList.toggle('busy', anyLoading);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
