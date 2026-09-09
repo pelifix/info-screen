@@ -64,8 +64,9 @@
         bikeCountResource: 'c584f88c-c967-4ced-9e47-4126eb7b1e14',
         bikeCountStation: 'Møllebukta',
         bikeCountRefresh: 10 * 60 * 1000,
-        policeApi: 'https://api.politiloggen.politiet.no/messages?Districts=S%C3%B8rVest&Municipalities=Randaberg&Municipalities=Sandnes&Municipalities=Sola&Municipalities=Stavanger&Take=20',
+        policeApi: 'https://api.politiloggen.politiet.no/messages?Districts=S%C3%B8rVest&Municipalities=Randaberg&Municipalities=Sandnes&Municipalities=Sola&Municipalities=Stavanger&Take=50',   // 50 is the API maximum
         policeRefresh: 2 * 60 * 1000,
+        policeMaxAgeHours: 24,     // closed incidents drop out after this; ongoing ones always stay
     };
 
     /* ═══ SOURCE STATUS TRACKING ═══ */
@@ -334,10 +335,21 @@
     var monN = ['januar','februar','mars','april','mai','juni','juli','august','september','oktober','november','desember'];
     var monShort = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'];
 
+    // Single parse for every pubDate in the app. rss2json reports UTC without a zone marker
+    // ("2026-09-09 17:23:19"), which the browser would otherwise read as local time — that made the
+    // feed sort rank news two hours older than the age label showed, so police and the synthetic
+    // cards outranked fresher stories. Sorting and display must go through the same function.
+    function parseDate(dateStr) {
+        if (!dateStr) return NaN;
+        var raw = String(dateStr);
+        var d = raw;
+        if (!/[Z+\-]\d/.test(d.slice(-6)) && d.slice(-1) !== 'Z') d += 'Z';
+        var t = new Date(d).getTime();
+        return isNaN(t) ? new Date(raw).getTime() : t;   // RFC 822 and friends: parse as given
+    }
+
     function timeAgo(dateStr) {
-        var d = dateStr;
-        if (d && !/[Z+\-]\d/.test(d.slice(-6)) && d.slice(-1) !== 'Z') d += 'Z';
-        var diff = Date.now() - new Date(d).getTime();
+        var diff = Date.now() - parseDate(dateStr);
         var mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Akkurat n\u00e5';
         if (mins < 60) return mins + ' min siden';
@@ -640,7 +652,7 @@
     function mergeFeedsAndRender() {
         var merged = [];
         Object.keys(rawFeeds).forEach(function(key) { merged = merged.concat(rawFeeds[key]); });
-        merged.sort(function(a, b) { return new Date(b.pubDate || 0) - new Date(a.pubDate || 0); });
+        merged.sort(function(a, b) { return (parseDate(b.pubDate) || 0) - (parseDate(a.pubDate) || 0); });
 
         // Hero: newest article from each source (before dedup so NTB dupes don't steal slots)
         heroItems = [];
@@ -2418,7 +2430,7 @@
             var articles = [];
             Object.keys(threads).forEach(function(tid) {
                 var updates = threads[tid].sort(function(a, b) {
-                    return new Date(a.createdOn) - new Date(b.createdOn);
+                    return parseDate(a.createdOn) - parseDate(b.createdOn);
                 });
                 var first = updates[0];
                 var latest = updates[updates.length - 1];
@@ -2448,18 +2460,25 @@
                     title: title,
                     desc: desc,
                     descHtml: descHtml,
-                    pubDate: isActive ? latest.createdOn : first.createdOn,
+                    pubDate: latest.createdOn,        // last update, so "case closed" activity counts as recency
                     image: latest.imageUrl || first.imageUrl || null,
                     source: 'politi',
                     categories: [first.category || 'Hendelse'],
                     _isActive: isActive,
                     _threadId: tid,
                     _category: first.category || 'Hendelse',
+                    _lastMs: parseDate(latest.createdOn),
                 });
             });
 
-            console.log('[' + SOURCES.politi.label + '] politiet.no \u2192 ' + articles.length + ' threads (' + messages.length + ' messages)');
-            rawFeeds.politi = articles;
+            // Ongoing incidents always stay. Closed ones drop out once their last update ages out: the API returns
+            // the last 50 messages whatever their age, which on a quiet week reaches back nearly a week.
+            var cutoff = Date.now() - CONFIG.policeMaxAgeHours * 3600e3;
+            var shown = articles.filter(function(a) { return a._isActive || !(a._lastMs < cutoff); });
+
+            console.log('[' + SOURCES.politi.label + '] politiet.no \u2192 ' + shown.length + ' of ' + articles.length +
+                ' threads within ' + CONFIG.policeMaxAgeHours + 'h (' + messages.length + ' messages)');
+            rawFeeds.politi = shown;
             mergeFeedsAndRender();
             setSource('politi', 'ok');
         } catch (e) {
