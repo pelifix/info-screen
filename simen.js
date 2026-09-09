@@ -2,7 +2,8 @@
 // Adds: a banner between hero and feed, the live stream in the sidebar image slot (expands over the hero
 // on celebrations), confetti on every new lap, gold celebrations on milestones, a ticker block.
 // Depends on window.InfoScreen (app.js) and window.Celebration (celebration.js).
-// Dev: ?simenDemo=1 fakes a lap every 25s. Keys: L = lap, M = milestone, F = finish, V = toggle video size.
+// After the finish: result layout in the banner, video off, a result panel show over the hero every 5 minutes.
+// Dev: ?simenDemo=1 fakes a lap every 25s. Keys: L = lap, M = milestone, F = finish, P = result show, V = toggle video size.
 (function() {
     'use strict';
     var IS = window.InfoScreen;
@@ -15,10 +16,18 @@
         videoId: 'Vbp4_QZ8HYw',
         raceStart: '2026-09-03T12:00:00+02:00',
         raceHours: 144,
-        hideAfter: '2026-09-12T12:00:00+02:00',     // everything disappears on its own after this
+        hideAfter: '2026-09-16T18:00:00+02:00',     // everything disappears on its own after this (one week after the finish)
         eventName: 'EMU 6-dagers · Balatonfüred',
+        eventFull: 'EMU 6-Day Race · GOMU 6-Day World Championship',
+        eventPlace: 'Balatonfüred, Ungarn · 3.–9. september 2026',
         videoCaption: 'Balatonfüred — EMU 6-Day Race, direkte',
-        resultsRefresh: 30 * 1000,                  // keep in sync with SOURCES.simen.refresh in app.js
+        resultsRefresh: 30 * 1000,                  // while the race runs (SOURCES.simen.refresh follows this)
+        finalResultsRefresh: 30 * 60 * 1000,        // after the finish: only official corrections can change anything
+        finalShowEveryMs: 5 * 60 * 1000,            // after the finish: confetti + rocket + result panel this often, round the clock
+        finalShowConfettiMs: 60 * 1000,
+        finalShowPanelMs: 45 * 1000,
+        finalPerDay: [210, 170, 177, 172, 124, 87], // km per race day; used when the lap table is unavailable (korido blocks IPs post-race)
+        marathonKm: 42.195,
         lapsRefresh: 5 * 60 * 1000,
         lapKm: 0.8982,
         breakHintFactor: 2,                         // current lap > factor × last lap (and > breakHintMinSec) → 'mulig pause'
@@ -51,9 +60,10 @@
     var st = {
         hasData: false, pos: null, km: null, laps: null, lastLap: '', lastLapAt: null, mark: '', total: 0,
         name: 'Simen Holvik', behind: null, ahead: null,
-        perDay: null, km24: null, finished: Date.now() >= raceEnd,
+        perDay: null, km24: null, top3: [], finished: Date.now() >= raceEnd,
     };
     var prevLaps = null, prevKm = null;
+    var finalMode = false, lastFinalShow = 0;          // final-mode flags (declared here: renderClock runs before later var initialisers)
     var storedKm = parseFloat(localStorage.getItem('simen:lastKm') || '') || null;
 
     /* ── formatting ── */
@@ -72,6 +82,17 @@
         var s = Math.max(0, Math.floor(ms / 1000));
         return s >= 3600 ? fmtDuration(ms) : Math.floor(s / 60) + ':' + pad2(s % 60);
     }
+    var ISO2 = { USA: 'US', NOR: 'NO', CRO: 'HR', HUN: 'HU', ROU: 'RO', JPN: 'JP', SWE: 'SE', FRA: 'FR', GER: 'DE', AUT: 'AT', ITA: 'IT',
+        POL: 'PL', CZE: 'CZ', SVK: 'SK', SUI: 'CH', NED: 'NL', BEL: 'BE', GBR: 'GB', DEN: 'DK', FIN: 'FI', ESP: 'ES', POR: 'PT', SLO: 'SI',
+        SRB: 'RS', UKR: 'UA', AUS: 'AU', CAN: 'CA', RSA: 'ZA', IND: 'IN', ISR: 'IL', IRL: 'IE', LTU: 'LT', LAT: 'LV', EST: 'EE', BRA: 'BR',
+        ARG: 'AR', MEX: 'MX', NZL: 'NZ', TPE: 'TW', KOR: 'KR', CHN: 'CN', TUR: 'TR', GRE: 'GR', BUL: 'BG' };
+    function flagHtml(countryField) {
+        var a3 = iso3(countryField);
+        if (a3 === 'NOR') return FLAG_NOR;
+        var a2 = ISO2[a3];
+        return a2 ? String.fromCodePoint(0x1F1E6 + a2.charCodeAt(0) - 65, 0x1F1E6 + a2.charCodeAt(1) - 65) : a3;
+    }
+    var MON = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
     function surname(name) { return String(name || '').trim().split(/\s+/).pop(); }
     function iso3(countryField) { return (countryField || '').split('_')[0].toUpperCase(); }
     function parseHms(s) {
@@ -95,6 +116,7 @@
         var lapAt = parseHms(me[12]);                      // col 12 = race clock when the last lap was recorded
         st.lastLapAt = lapAt > 0 ? raceStart + lapAt * 1000 : null;
         st.behind = null; st.ahead = null;
+        st.top3 = rows.slice(0, 3).map(rowInfo);
         rows.forEach(function(r) {
             var p = +r[0];
             if (p === st.pos + 1) st.behind = rowInfo(r);
@@ -134,6 +156,7 @@
         st.perDay = perDay;
         st.km24 = km24;
     }
+    function perDayKm() { return st.perDay || (st.finished ? CFG.finalPerDay : null); }
     function projection() {
         if (st.km == null) return null;
         var now = Date.now();
@@ -150,7 +173,7 @@
     banner.id = 'simen-banner';
     banner.innerHTML =
         '<div class="simen-cell simen-id">' +
-            '<div class="simen-flag">' + FLAG_NOR + '<span class="simen-live">LIVE</span></div>' +
+            '<div class="simen-flag">' + FLAG_NOR + '<span class="simen-live" id="simen-live-tag">LIVE</span></div>' +
             '<div><div class="simen-name"><span id="simen-name">Simen Holvik</span></div>' +
             '<div class="simen-event"><div>· ' + esc(CFG.eventName) + '</div><div id="simen-event-runners"></div></div></div>' +
             '<div class="simen-pos" id="simen-pos">–</div>' +
@@ -165,7 +188,7 @@
         '<div class="simen-cell simen-clock grow"><div class="simen-label" id="simen-day">Dag – av 6</div>' +
             '<div class="simen-value" id="simen-left">–</div><div class="simen-bar"><div id="simen-bar"></div></div></div>' +
         '<div class="simen-cell simen-daysc"><div class="simen-label">Km per løpsdag (12–12)</div><div class="simen-days" id="simen-days"></div><div class="simen-sub" id="simen-days-sub"></div></div>' +
-        '<div class="simen-cell simen-proj"><div class="simen-label">Prognose</div>' +
+        '<div class="simen-cell simen-proj"><div class="simen-label" id="simen-proj-label">Prognose</div>' +
             '<div class="simen-value" id="simen-proj">–</div><div class="simen-sub" id="simen-proj-sub">–</div></div>';
     hero.parentNode.insertBefore(banner, hero.nextSibling);
     var $ = function(id) { return document.getElementById(id); };
@@ -197,8 +220,10 @@
         var day = Math.min(6, Math.floor(elapsed / 86400e3) + 1);
         $('simen-bar').style.width = (elapsed / (CFG.raceHours * 3600e3) * 100).toFixed(2) + '%';
         if (now >= raceEnd) {
-            $('simen-day').textContent = 'Mål · ' + CFG.raceHours + ' timer fullført';
-            $('simen-left').textContent = 'FERDIG';
+            var fin = new Date(raceEnd);
+            $('simen-day').textContent = 'I mål · ' + CFG.raceHours + ' timer';
+            $('simen-left').textContent = fin.getDate() + '. ' + MON[fin.getMonth()] + ' ' + pad2(fin.getHours()) + ':' + pad2(fin.getMinutes());
+            enterFinalMode();
         } else if (now < raceStart) {
             $('simen-day').textContent = 'Starter om';
             $('simen-left').textContent = fmtDuration(raceStart - now);
@@ -212,6 +237,7 @@
     // Time since the last lap was recorded, ticking up. Resets when the next results poll (60 s) shows a new lap,
     // so it can overshoot by up to a minute. Korido marks breaks with mark === 'rest'.
     function renderLapTimer(now) {
+        if (st.finished) return;                                        // the cell shows the average speed instead (renderBanner)
         var el = $('simen-lap'), label = $('simen-lap-label');
         if (!st.hasData || st.lastLapAt == null || now < raceStart || now >= raceEnd) {
             label.textContent = 'Denne runden'; el.textContent = '–'; el.className = 'simen-value'; return;
@@ -246,6 +272,11 @@
             lapSub = 'siste ' + st.lastLap + (sec > 0 ? ' · ' + fmtKm(CFG.lapKm / sec * 3600) + ' km/t' : '');
         }
         $('simen-lap-sub').textContent = lapSub;
+        if (st.finished) {
+            $('simen-lap-label').textContent = 'Snittfart';
+            var avgEl = $('simen-lap'); avgEl.className = 'simen-value'; avgEl.textContent = fmtKm(st.km / CFG.raceHours) + ' km/t';
+            $('simen-lap-sub').textContent = CFG.raceHours + ' timer';
+        }
 
         var gapEl = $('simen-gap');
         if (st.pos === 1 && st.behind) {
@@ -254,7 +285,7 @@
             gapEl.textContent = '▲ ' + fmtKm(st.km - st.behind.km) + ' km';
             $('simen-gap-sub').textContent = 'foran ' + surname(st.behind.name) + ' (' + iso3(st.behind.country) + ')';
         } else if (st.ahead) {
-            $('simen-gap-label').textContent = 'Bak leder';
+            $('simen-gap-label').textContent = st.finished ? 'Bak vinner' : 'Bak leder';
             gapEl.className = 'simen-value down';
             gapEl.textContent = '▼ ' + fmtKm(st.ahead.km - st.km) + ' km';
             $('simen-gap-sub').textContent = 'bak ' + surname(st.ahead.name) + ' (' + iso3(st.ahead.country) + ')';
@@ -262,23 +293,32 @@
             gapEl.className = 'simen-value'; gapEl.textContent = '–'; $('simen-gap-sub').textContent = '';
         }
 
-        if (st.perDay) {
-            var today = Math.min(5, Math.floor((Date.now() - raceStart) / 86400e3));
-            var max = Math.max.apply(null, st.perDay) || 1;
-            $('simen-days').innerHTML = st.perDay.map(function(km, i) {
-                var cls = i === today ? 'today' : i > today ? 'future' : '';
+        var perDay = perDayKm();
+        if (perDay) {
+            var today = st.finished ? -1 : Math.min(5, Math.floor((Date.now() - raceStart) / 86400e3));
+            var max = Math.max.apply(null, perDay) || 1;
+            var best = perDay.indexOf(max);
+            $('simen-days').innerHTML = perDay.map(function(km, i) {
+                var cls = st.finished ? (i === best ? 'today' : '') : (i === today ? 'today' : i > today ? 'future' : '');
                 var h = Math.max(2, Math.round(km / max * 32));
                 return '<div class="' + cls + '"><div class="bar" style="height:' + h + 'px"></div><div class="val">' + (km > 0 ? Math.round(km) : '·') + '</div></div>';
             }).join('');
-            $('simen-days-sub').textContent = st.km24 != null ? 'siste 24 t: ' + fmtKm(st.km24) + ' km' : '';
+            $('simen-days-sub').textContent = st.finished ? 'beste dag: ' + Math.round(max) + ' km' : (st.km24 != null ? 'siste 24 t: ' + fmtKm(st.km24) + ' km' : '');
         }
 
-        var proj = projection();
-        $('simen-proj').textContent = proj != null ? fmtKm(proj, 0) + ' km' : '–';
         var projSub = $('simen-proj-sub');
-        if (st.km >= CFG.worldRecordKm) { projSub.textContent = 'NY VERDENSREKORD!'; projSub.className = 'simen-sub record'; }
-        else if (proj != null && proj >= CFG.worldRecordKm) { projSub.textContent = 'over VR ' + fmtKm(CFG.worldRecordKm) + ' km'; projSub.className = 'simen-sub record'; }
-        else { projSub.textContent = 'VR: ' + fmtKm(CFG.worldRecordKm) + ' km'; projSub.className = 'simen-sub'; }
+        if (st.finished) {
+            $('simen-proj-label').textContent = 'Tilsvarer';
+            $('simen-proj').textContent = fmtKm(st.km / CFG.marathonKm) + ' maraton';
+            projSub.textContent = 'à ' + fmtKm(CFG.marathonKm, 3) + ' km'; projSub.className = 'simen-sub';
+        } else {
+            var proj = projection();
+            $('simen-proj-label').textContent = 'Prognose';
+            $('simen-proj').textContent = proj != null ? fmtKm(proj, 0) + ' km' : '–';
+            if (st.km >= CFG.worldRecordKm) { projSub.textContent = 'NY VERDENSREKORD!'; projSub.className = 'simen-sub record'; }
+            else if (proj != null && proj >= CFG.worldRecordKm) { projSub.textContent = 'over VR ' + fmtKm(CFG.worldRecordKm) + ' km'; projSub.className = 'simen-sub record'; }
+            else { projSub.textContent = 'VR: ' + fmtKm(CFG.worldRecordKm) + ' km'; projSub.className = 'simen-sub'; }
+        }
         renderClock();
     }
     setInterval(renderClock, 1000);
@@ -290,12 +330,12 @@
         var gap = st.pos === 1 && st.behind ? '▲ ' + fmtKm(st.km - st.behind.km) + ' km' : (st.ahead ? '▼ ' + fmtKm(st.ahead.km - st.km) + ' km' : '');
         return '<span class="tk-data-item tk-simen"><span class="tk-simen-flag">' + FLAG_NOR + '</span>' +
             '<span class="tk-data-val">' + fmtKm(st.km) + '</span>' +
-            '<span class="tk-data-meta"><span class="tk-data-label">Simen · ' + st.pos + '. plass</span>' +
+            '<span class="tk-data-meta"><span class="tk-data-label">Simen · ' + st.pos + '. plass' + (st.finished ? ' · i mål' : '') + '</span>' +
             '<span class="tk-data-unit">km · ' + esc(gap) + '</span></span></span>';
     });
 
     /* ── video: one fixed box, normally over the sidebar slot, expands over the hero ── */
-    var video = null, ytPlayer = null, videoBig = false, videoState = 'init';
+    var video = null, ytPlayer = null, videoBig = false, videoState = 'init', videoOff = false;
     function initVideo() {
         var slot = $('daily-images');
         if (!slot) return;
@@ -318,7 +358,18 @@
         positionVideo();
         requestAnimationFrame(function() { requestAnimationFrame(function() { video.classList.remove('no-anim'); }); });
         window.addEventListener('resize', positionVideo);
-        loadYouTube();
+        if (st.finished) shutdownVideo(); else loadYouTube();
+    }
+    // After the finish the stream is over: no player, no retries, slot back to the slideshow. The box stays for the result panel.
+    function shutdownVideo() {
+        if (videoOff) return;
+        videoOff = true;
+        try { if (ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); } catch (e) { /* ignore */ }
+        ytPlayer = null;
+        var old = $('simen-yt'); if (old) old.remove();
+        video.classList.add('video-off');
+        parkVideo(true);
+        console.log('[' + LABEL + '] video → off (race finished)');
     }
     function positionVideo() {
         if (!video) return;
@@ -326,7 +377,10 @@
         var r = target.getBoundingClientRect();
         video.style.top = r.top + 'px'; video.style.left = r.left + 'px';
         video.style.width = r.width + 'px'; video.style.height = r.height + 'px';
-        if (videoBig) {
+        if (videoOff) {
+            video.style.setProperty('--pw', '0px');
+            video.style.setProperty('--sl', '0px');
+        } else if (videoBig) {
             var pw = Math.round(r.height * 16 / 9);
             video.style.setProperty('--pw', pw + 'px');
             video.style.setProperty('--sl', pw + 'px');
@@ -435,6 +489,7 @@
         createPlayer();
     }
     function videoWatchdog() {
+        if (videoOff) return;
         if (!ytPlayer) {
             if (window.YT && YT.Player && video && videoState !== 'init') rebuildPlayer();   // API arrived late or player got lost
             return;
@@ -464,7 +519,7 @@
     function takeover(ms, gold) {
         if (!video) return;
         var stamp = $('simen-stamp');
-        stamp.hidden = true; stamp.innerHTML = '';
+        stamp.hidden = true; stamp.innerHTML = ''; stamp.classList.remove('panel');
         stamp.classList.toggle('gold', !!gold);
         videoBig = true; video.classList.add('big'); positionVideo();
         if (takeoverTimer) clearTimeout(takeoverTimer);
@@ -484,7 +539,7 @@
     }
     // Centre of the text panel (right of the 16:9 player) once the video box covers the hero, as viewport fractions
     function stampTarget() {
-        var r = hero.getBoundingClientRect(), pw = r.height * 16 / 9;
+        var r = hero.getBoundingClientRect(), pw = videoOff ? 0 : r.height * 16 / 9;
         return { x: (r.left + pw + (r.width - pw) / 2) / window.innerWidth, y: (r.top + r.height / 2) / window.innerHeight };
     }
 
@@ -541,16 +596,77 @@
             }
         }
     }
+    /* ── final mode: result layout, video off, result panel show every 5 minutes ── */
+    function enterFinalMode() {
+        if (finalMode) return;
+        finalMode = true;
+        var wasRunning = st.hasData && prevLaps != null && !st.finished;   // the page was up when the clock hit zero
+        st.finished = true;
+        banner.classList.add('final');
+        $('simen-live-tag').textContent = 'MÅL';
+        if (IS.SOURCES.simen) IS.SOURCES.simen.refresh = CFG.finalResultsRefresh;
+        if (wasRunning) celebrateFinish();
+        // finish celebration keeps the video for a while; then the stream is over for good
+        setTimeout(shutdownVideo, wasRunning ? CFG.finishTakeoverMs + 60 * 1000 : 0);
+        lastFinalShow = Date.now() - CFG.finalShowEveryMs + 90 * 1000;   // first result show 90 s after entering final mode
+        setInterval(function() { if (videoOff && st.hasData && Date.now() - lastFinalShow >= CFG.finalShowEveryMs) finalShow(); }, 5000);
+        if (st.hasData) renderBanner();
+        console.log('[' + LABEL + '] final mode');
+    }
+    function finalShow() {
+        lastFinalShow = Date.now();
+        console.log('[' + LABEL + '] 🎆 resultatvisning');
+        if (window.Celebration) Celebration.confetti({ duration: CFG.finalShowConfettiMs, colors: CFG.colors.concat(['#ffd166']), rate: 70, burstCount: 160 });
+        bannerGlow(CFG.finalShowConfettiMs, true);
+        takeover(CFG.finalShowPanelMs, true);
+        if (window.Celebration && Celebration.rocket) {
+            var t = stampTarget();
+            Celebration.rocket({ x: t.x, y: t.y, duration: CFG.rocketMs, colors: CFG.goldColors, glow: '#ffd166', onExplode: showFinalPanel });
+        } else {
+            showFinalPanel();
+        }
+    }
+    function showFinalPanel() {
+        if (!video || !videoBig) return;
+        var perDay = perDayKm() || [];
+        var max = Math.max.apply(null, perDay.concat([1])), best = perDay.indexOf(max);
+        var podium = st.top3.map(function(r) {
+            return '<div class="' + (r.bib === CFG.bib ? 'me' : '') + '"><span class="fp-rank">' + r.pos + '</span><span class="fp-fl">' + flagHtml(r.country) + '</span>' +
+                '<span class="fp-nm">' + esc(r.name) + '</span><span class="fp-dist">' + fmtKm(r.km) + ' km</span></div>';
+        }).join('');
+        var days = perDay.map(function(km, i) {
+            return '<div class="' + (i === best ? 'best' : '') + '"><div class="val">' + Math.round(km) + '</div><div class="bar" style="height:' + Math.max(3, Math.round(km / max * 46)) + 'px"></div><div class="day">D' + (i + 1) + '</div></div>';
+        }).join('');
+        var stamp = $('simen-stamp');
+        stamp.className = 'simen-stamp gold panel';
+        stamp.innerHTML =
+            '<div class="fp">' +
+                '<div class="fp-id"><div class="fp-flag">' + FLAG_NOR + '</div><div class="fp-name">' + esc(st.name) + '</div>' +
+                    '<div class="fp-pos">' + st.pos + '. PLASS</div>' +
+                    '<div class="fp-event">' + esc(CFG.eventFull) + '<br>' + esc(CFG.eventPlace) + ' · ' + st.total + ' løpere</div></div>' +
+                '<div class="fp-main"><div class="fp-km">' + fmtKm(st.km) + '<small>km</small></div>' +
+                    '<div class="fp-stats">' +
+                        '<div><b>' + fmtKm(st.laps, 0) + '</b><span>runder</span></div>' +
+                        '<div><b>' + fmtKm(st.km / CFG.raceHours) + '</b><span>km/t i snitt</span></div>' +
+                        '<div><b>' + fmtKm(st.km / CFG.marathonKm) + '</b><span>maraton</span></div>' +
+                        '<div><b>' + CFG.raceHours + '</b><span>timer</span></div>' +
+                    '</div></div>' +
+                '<div class="fp-side"><div class="fp-label">Topp 3 av ' + st.total + '</div><div class="fp-podium">' + podium + '</div>' +
+                    '<div class="fp-label">Km per løpsdag</div><div class="fp-days">' + days + '</div></div>' +
+            '</div>';
+        stamp.hidden = false;
+    }
+
     function detectEvents() {
-        if (prevLaps != null && st.laps > prevLaps) celebrateLap();
+        var running = Date.now() < raceEnd;
+        if (running && prevLaps != null && st.laps > prevLaps) celebrateLap();
         var fromKm = prevKm != null ? prevKm : storedKm;
-        if (fromKm != null && st.km > fromKm) {
+        if (running && fromKm != null && st.km > fromKm) {
             var hit = null;
             CFG.milestones.forEach(function(m) { if (fromKm < m && st.km >= m) hit = { title: m + ' KM!', sub: 'Milepæl passert' }; });
             if (fromKm < CFG.worldRecordKm && st.km >= CFG.worldRecordKm) hit = { title: 'VERDENSREKORD!', sub: fmtKm(st.km) + ' km – forbi ' + fmtKm(CFG.worldRecordKm) + ' km' };
             if (hit) celebrateMilestone(hit.title, hit.sub);
         }
-        if (!st.finished && Date.now() >= raceEnd && prevLaps != null) { st.finished = true; celebrateFinish(); }
         prevLaps = st.laps; prevKm = st.km; storedKm = st.km;
         try { localStorage.setItem('simen:lastKm', String(st.km)); } catch (e) { /* ignore */ }
     }
@@ -604,17 +720,25 @@
         if (e.key === 'l' || e.key === 'L') simulateLap();
         else if (e.key === 'm' || e.key === 'M') simulateMilestone();
         else if (e.key === 'f' || e.key === 'F') { if (st.hasData) celebrateFinish(); }
+        else if (e.key === 'p' || e.key === 'P') { if (st.hasData && videoOff) finalShow(); }
         else if (e.key === 'v' || e.key === 'V') { if (video) { videoBig = !videoBig; video.classList.toggle('big', videoBig); positionVideo(); } }
     });
     if (demo) setInterval(simulateLap, 25000);
 
     /* ── go ── */
     initVideo();
-    setTimeout(loadResults, 8000);
-    setInterval(loadResults, CFG.resultsRefresh);
-    setTimeout(loadLaps, 30000);
-    setInterval(loadLaps, CFG.lapsRefresh);
-    window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish,
+    function scheduleResults() {
+        var ms = Date.now() >= raceEnd ? CFG.finalResultsRefresh : CFG.resultsRefresh;
+        if (IS.SOURCES.simen) IS.SOURCES.simen.refresh = ms;
+        setTimeout(function() { loadResults().then(scheduleResults, scheduleResults); }, ms);
+    }
+    if (IS.SOURCES.simen && st.finished) IS.SOURCES.simen.refresh = CFG.finalResultsRefresh;
+    setTimeout(function() { loadResults().then(scheduleResults, scheduleResults); }, 8000);
+    if (!st.finished) {
+        setTimeout(loadLaps, 30000);
+        var lapsTimer = setInterval(function() { if (Date.now() >= raceEnd) { clearInterval(lapsTimer); return; } loadLaps(); }, CFG.lapsRefresh);
+    }
+    window.SimenLive = { state: st, simulateLap: simulateLap, simulateMilestone: simulateMilestone, celebrateFinish: celebrateFinish, finalShow: finalShow,
         video: { state: function() { return videoState; }, watch: vw, pause: function() { if (ytPlayer) ytPlayer.pauseVideo(); },
                  tick: videoWatchdog, rebuild: rebuildPlayer, fail: function(code) { setVideoState('error ' + (code || 150)); }, park: parkVideo } };
 })();

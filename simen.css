@@ -193,3 +193,50 @@
 .ticker-content .tk-data-item.tk-simen { color: var(--accent); }
 .ticker-content .tk-simen-flag { display: inline-flex; align-items: center; margin-right: 8px; align-self: center; }
 .ticker-content .tk-simen-flag svg { display: block; width: 26px; height: 19px; border-radius: 2px; }
+
+/* ── Final mode (after the finish): MÅL tag, player gone, result panel over the hero every 5 minutes ── */
+.simen-banner.final .simen-live { color: var(--gold); }
+.simen-banner.final .simen-live::before { animation: none; background: var(--gold); }
+/* final values are wider ('22,3 maraton', '9. sep 12:00'): trim them so the name cell keeps its room */
+.simen-banner.final .simen-cell { padding: 0 12px; }
+.simen-banner.final .simen-cell:not(.simen-km) .simen-value { font-size: 1.5rem; }
+.simen-video.video-off .simen-player-box { display: none; }
+.simen-stamp.panel { display: block; padding: 0; background: none; text-align: left; }
+.fp {
+    display: grid; grid-template-columns: 400px 1fr 470px; gap: 36px; align-items: center;
+    width: 100%; height: 100%; padding: 28px 44px; box-sizing: border-box;
+    opacity: 0; transform: scale(1.06); animation: panel-in 0.7s 0.05s cubic-bezier(0.2, 1.2, 0.3, 1) forwards;
+}
+@keyframes panel-in { to { opacity: 1; transform: scale(1); } }
+.fp-flag svg { display: block; width: 66px; height: 48px; border-radius: 4px; box-shadow: 0 3px 12px rgba(0,0,0,0.5); margin-bottom: 14px; }
+.fp-name { font-family: var(--font-display); font-weight: 800; font-size: 2.1rem; line-height: 1.05; letter-spacing: 1px; text-transform: uppercase; color: #fff; }
+.fp-pos {
+    display: inline-block; margin: 12px 0 14px; padding: 8px 14px; border-radius: 6px;
+    font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; letter-spacing: 2px;
+    background: var(--gold); color: var(--bg-deep); box-shadow: 0 0 24px rgba(255,209,102,0.45);
+}
+.fp-event { font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); }
+.fp-main { text-align: center; }
+.fp-km { font-family: var(--font-display); font-weight: 800; font-size: 6rem; line-height: 1; color: var(--accent); text-shadow: 0 0 40px rgba(232,168,62,0.35); white-space: nowrap; }
+.fp-km small { font-size: 1.8rem; margin-left: 8px; opacity: 0.75; }
+.fp-stats { display: flex; justify-content: center; gap: 34px; margin-top: 24px; }
+.fp-stats b { display: block; font-family: var(--font-display); font-weight: 700; font-size: 1.9rem; line-height: 1; color: #fff; }
+.fp-stats span { display: block; margin-top: 6px; font-family: var(--font-display); font-size: 0.65rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-secondary); }
+.fp-label { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; }
+.fp-podium { margin-bottom: 18px; }
+.fp-podium > div { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 1.05rem; }
+.fp-podium > div:first-child { border-top: none; }
+.fp-podium .fp-rank { flex: none; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; }
+.fp-podium .fp-fl { width: 36px; display: inline-flex; justify-content: center; font-size: 1.25rem; line-height: 1; }
+.fp-podium .fp-fl svg { width: 26px; height: 19px; border-radius: 2px; }
+.fp-podium .fp-nm { flex: 1; font-family: var(--font-display); font-weight: var(--display-weight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-podium .fp-dist { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fp-podium > div.me { color: var(--accent); }
+.fp-podium > div.me .fp-rank { background: var(--gold); color: var(--bg-deep); }
+.fp-days { display: flex; gap: 8px; align-items: flex-end; height: 84px; }
+.fp-days > div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.fp-days .bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--nor-blue); opacity: 0.9; }
+.fp-days .val { font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.fp-days .day { font-size: 0.55rem; letter-spacing: 1px; color: var(--text-dim); margin-top: 4px; }
+.fp-days .best .bar { background: var(--accent); }
+.fp-days .best .val { color: var(--accent); }
