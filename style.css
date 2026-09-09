@@ -904,6 +904,18 @@ body.hide-cursor { cursor: none; }
 }
 .src-copy { display: flex; align-items: center; gap: 12px; flex: none; }
 .src-copy::after { content: ''; width: 30px; flex: none; }
+/* The conveyor on line one: moved by JS, so no animation here. Gap must match BELT_GAP in app.js. */
+.src-belt { display: flex; align-items: center; gap: 12px; will-change: transform; }
+.src-belt-line .src-track > .src-none {
+    position: absolute; left: 0; top: 0; bottom: 0; z-index: 2;
+    display: flex; align-items: center;
+}
+.src-belt-line .src-track > .src-none[hidden] { display: none; }
+/* Chips leaving on the left fade out, the mirror of the entry fade on the right */
+.src-belt-line .src-track::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 18px; z-index: 1;
+    background: linear-gradient(to right, var(--bg-card), transparent); pointer-events: none;
+}
 .src-val { color: var(--text-secondary); white-space: nowrap; }
 .src-none { color: var(--text-dim); }
 .src-chip {

@@ -153,30 +153,63 @@
     /* The top status line is an activity strip rather than a snapshot: a source appears in amber while it
        fetches, turns green or red in place when it finishes, and a green entry is dropped once it has had
        time to drift off the left edge. Red entries stay while the source is still failing. */
-    var ACTIVITY_KEEP_MS = 14000;      // roughly one traversal of the strip at the drift speed
-    var activity = [];                 // [{ key, label, state: busy|ok|bad, at }], oldest first
+    // A real conveyor, moved frame by frame rather than by a CSS loop: appending to an element that is
+    // running a CSS animation restarts it, and with 30 sources refreshing on short intervals something is
+    // added every few seconds, so the belt never actually travelled. Here an append leaves the current
+    // position untouched, and a chip is dropped the moment it passes the left edge (its width comes off the
+    // offset at the same time, so nothing behind it jumps).
+    var BELT_SPEED = 26;               // px per second
+    var BELT_GAP = 12;                 // must match the gap on .src-belt in style.css
+    var beltEl = null, beltNone = null, beltOffset = 0, beltRaf = null, beltPrev = 0;
+    var beltChips = {};                // source key -> the chip currently on the belt
 
-    function activityEntry(key) {
-        for (var i = 0; i < activity.length; i++) if (activity[i].key === key) return activity[i];
-        return null;
+    function beltTick(ts) {
+        beltRaf = null;
+        if (!beltEl || !beltEl.isConnected) { beltPrev = 0; return; }
+        var dt = beltPrev ? Math.min((ts - beltPrev) / 1000, 0.25) : 0;
+        beltPrev = ts;
+        beltOffset += BELT_SPEED * dt;
+
+        var first;
+        while ((first = beltEl.firstElementChild)) {
+            if (first.offsetLeft + first.offsetWidth - beltOffset > 0) break;      // still on screen
+            delete beltChips[first.getAttribute('data-key')];
+            beltOffset -= first.offsetWidth + BELT_GAP;
+            beltEl.removeChild(first);
+        }
+        if (!beltEl.firstElementChild) {                                           // idle: park and stop
+            beltOffset = 0; beltPrev = 0;
+            beltEl.style.transform = '';
+            if (beltNone) beltNone.hidden = false;
+            return;
+        }
+        beltEl.style.transform = 'translate3d(' + (-beltOffset).toFixed(1) + 'px, 0, 0)';
+        beltRaf = requestAnimationFrame(beltTick);
     }
+
+    function beltPut(key, state, label) {
+        if (!beltEl) buildStatusPanel();
+        if (!beltEl) return;
+        var chip = beltChips[key];
+        if (chip && chip.isConnected) { chip.className = 'src-chip ' + state; return; }   // recolour in place
+        if (!beltEl.firstElementChild) {
+            beltOffset = -beltEl.parentNode.clientWidth;                           // enter from the right
+            beltPrev = 0;
+        }
+        chip = document.createElement('span');
+        chip.className = 'src-chip ' + state;
+        chip.setAttribute('data-key', key);
+        chip.innerHTML = '<span class="dot"></span>' + escapeHtml(label);
+        beltEl.appendChild(chip);
+        beltChips[key] = chip;
+        if (beltNone) beltNone.hidden = true;
+        if (!beltRaf) beltRaf = requestAnimationFrame(beltTick);
+    }
+
     function noteActivity(key, status) {
         var state = status === 'loading' ? 'busy' : status === 'ok' ? 'ok' : status === 'error' ? 'bad' : null;
-        if (!state) return;            // 'soon' is only a hint that a refresh is due, not a fetch
-        var e = activityEntry(key);
-        if (e) { e.state = state; e.at = Date.now(); }
-        else activity.push({ key: key, label: SOURCES[key].label, state: state, at: Date.now() });
+        if (state) beltPut(key, state, SOURCES[key].label);   // 'soon' only means a refresh is due
     }
-    function pruneActivity() {
-        var cut = Date.now() - ACTIVITY_KEEP_MS, before = activity.length;
-        activity = activity.filter(function(e) {
-            if (e.state === 'busy') return true;
-            if (e.state === 'bad') return SOURCES[e.key] && SOURCES[e.key].status === 'error';
-            return e.at > cut;
-        });
-        return activity.length !== before;
-    }
-    setInterval(function() { if (pruneActivity()) renderSourceStatus(); }, 2000);
 
     function setSource(key, status) {
         SOURCES[key].status = status;
@@ -207,16 +240,34 @@
     };
     var lastStatusSig = null;
 
+    // Built once. Line one is the conveyor above; line three keeps the looping drift, since the stalled
+    // list changes rarely enough that restarting it does not show.
+    function buildStatusPanel() {
+        var el = document.getElementById('source-status');
+        if (!el) return;
+        function ico(name, id) {
+            return '<svg class="src-ico" id="' + id + '" viewBox="0 0 24 24" aria-hidden="true">' + SRC_ICONS[name] + '</svg>';
+        }
+        var refreshEl = el.querySelector('.refresh-label');
+        el.innerHTML =
+            '<div class="src-line src-belt-line">' + ico('refresh', 'src-ico-refresh') +
+                '<div class="src-track"><span class="src-none">–</span><div class="src-belt"></div></div></div>' +
+            '<div class="src-line">' + ico('layers', 'src-ico-layers') +
+                '<div class="src-track"><span class="src-val"></span></div></div>' +
+            '<div class="src-line src-last">' + ico('alert', 'src-ico-alert') +
+                '<div class="src-track"><div class="src-drift"><div class="src-copy"></div></div></div></div>';
+        if (refreshEl) el.querySelector('.src-last').appendChild(refreshEl);
+        beltEl = el.querySelector('.src-belt');
+        beltNone = el.querySelector('.src-belt-line .src-none');
+        beltChips = {};
+        beltOffset = 0; beltPrev = 0;
+    }
+
     function renderSourceStatus() {
         var el = document.getElementById('source-status');
         if (!el) return;
+        if (!beltEl || !beltEl.isConnected) buildStatusPanel();
         var anyLoading = false, anySoon = false;
-        var refreshEl = el.querySelector('.refresh-label');
-        // 30 labelled dots wrapped to five rows and dragged the whole bottom bar taller, so the names are
-        // only spelled out for what is actually broken. Everything else is one row of bare dots.
-        // Three fixed lines: what is fetching, a healthy-source tally, and what is stuck. Naming only the
-        // sources that are doing something keeps the panel short; 30 labelled dots used to wrap onto five
-        // rows and drag the whole bottom bar taller.
         var stalled = [], okCount = 0;
         Object.keys(SOURCES).forEach(function(key) {
             var s = SOURCES[key];
@@ -228,59 +279,36 @@
         var articles = 0;
         if (rawFeeds) Object.keys(rawFeeds).forEach(function(k) { articles += (rawFeeds[k] || []).length; });
 
-        // Rebuild only when the set of entries changed, never on a colour change alone: setSource fires
-        // constantly and a rebuild would restart the drift animation. Colours are patched in place below.
-        var sig = activity.map(function(e) { return e.key; }).join('|') + '#' +
-            stalled.join('|') + '#' + okCount + '#' + articles;
+        var countEl = el.querySelector('.src-val');
+        if (countEl) countEl.textContent = okCount + ' aktive · ' + articles + ' artikler';
+
+        // Line three only: rebuild when the stalled set changes, and loop-drift it if it overflows
+        var sig = stalled.join('|');
         if (sig !== lastStatusSig) {
             lastStatusSig = sig;
-
-            function chips(names, cls) {
-                if (!names.length) return '<span class="src-none">–</span>';
-                return names.map(function(n) {
-                    return '<span class="src-chip ' + cls + '"><span class="dot"></span>' + escapeHtml(n) + '</span>';
-                }).join('');
+            var copy = el.querySelector('.src-last .src-copy');
+            if (copy) {
+                var drift = copy.parentNode, track = drift.parentNode;
+                while (drift.children.length > 1) drift.removeChild(drift.lastChild);
+                drift.classList.remove('scrolling');
+                drift.style.animationDuration = '';
+                copy.innerHTML = stalled.length
+                    ? stalled.map(function(n) {
+                        return '<span class="src-chip bad"><span class="dot"></span>' + escapeHtml(n) + '</span>';
+                    }).join('')
+                    : '<span class="src-none">–</span>';
+                if (copy.scrollWidth > track.clientWidth + 1) {
+                    drift.appendChild(copy.cloneNode(true));
+                    drift.style.animationDuration = Math.max(9, copy.scrollWidth / 26).toFixed(1) + 's';
+                    drift.classList.add('scrolling');
+                }
             }
-            function activityChips() {
-                if (!activity.length) return '<span class="src-none">–</span>';
-                return activity.map(function(e) {
-                    return '<span class="src-chip ' + e.state + '" data-key="' + escapeHtml(e.key) + '">' +
-                        '<span class="dot"></span>' + escapeHtml(e.label) + '</span>';
-                }).join('');
-            }
-            function line(icon, iconCls, inner, extraCls) {
-                return '<div class="src-line' + (extraCls || '') + '">' +
-                    '<svg class="src-ico ' + iconCls + '" viewBox="0 0 24 24" aria-hidden="true">' + SRC_ICONS[icon] + '</svg>' +
-                    '<div class="src-track"><div class="src-drift"><div class="src-copy">' + inner + '</div></div></div>';
-            }
-
-            el.innerHTML =
-                line('refresh', anyLoading ? 'busy' : '', activityChips()) + '</div>' +
-                line('layers', '', '<span class="src-val">' + okCount + ' aktive · ' + articles + ' artikler</span>') + '</div>' +
-                line('alert', stalled.length ? 'bad' : '', chips(stalled, 'bad'), ' src-last') +
-                '</div>';
-            if (refreshEl) el.querySelector('.src-last').appendChild(refreshEl);
-
-            // Lines wider than the panel drift sideways, the same trick the events and bus lists use:
-            // a second identical copy, then translate the pair by exactly half.
-            el.querySelectorAll('.src-track').forEach(function(track) {
-                var drift = track.firstChild, copy = drift.firstChild;
-                if (copy.scrollWidth <= track.clientWidth + 1) return;
-                drift.appendChild(copy.cloneNode(true));
-                drift.style.animationDuration = Math.max(9, copy.scrollWidth / 26).toFixed(1) + 's';
-                drift.classList.add('scrolling');
-            });
         }
 
-        // Colour only: patch both drift copies in place so the animation keeps running
-        var stateByKey = {};
-        activity.forEach(function(e) { stateByKey[e.key] = e.state; });
-        el.querySelectorAll('.src-chip[data-key]').forEach(function(node) {
-            var st = stateByKey[node.getAttribute('data-key')];
-            if (st && node.className !== 'src-chip ' + st) node.className = 'src-chip ' + st;
-        });
-        var refIcon = el.querySelector('.src-ico');
-        if (refIcon) refIcon.classList.toggle('busy', anyLoading);
+        var icoRefresh = document.getElementById('src-ico-refresh');
+        if (icoRefresh) icoRefresh.classList.toggle('busy', anyLoading);
+        var icoAlert = document.getElementById('src-ico-alert');
+        if (icoAlert) icoAlert.classList.toggle('bad', stalled.length > 0);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
