@@ -373,7 +373,7 @@
     // categories the log actually uses had no emoji before, so most incidents fell back to the beacon and the
     // picture looked arbitrary. Stroke width, colour and size come from CSS; these are just the shapes.
     var POLICE_ICON_PATHS = {
-        'Trafikk':         '<path d="M3.5 14.2l1.7-4.7A2 2 0 017.1 8.2h9.8a2 2 0 011.9 1.3l1.7 4.7v3.4h-17v-3.4z"/><path d="M3.5 14.2h17"/><circle cx="8" cy="17.6" r="1.6"/><circle cx="16" cy="17.6" r="1.6"/>',
+        'Trafikk':         '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 002 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
         'Ulykke':          '<path d="M2.5 12h4.2M5 9.6L7.4 12 5 14.4"/><path d="M21.5 12h-4.2M19 9.6L16.6 12 19 14.4"/><circle cx="12" cy="12" r="1.7"/><path d="M12 6.2v2.1M12 15.7v2.1M8.8 8.2l1.5 1.5M15.2 8.2l-1.5 1.5M8.8 15.8l1.5-1.5M15.2 15.8l-1.5-1.5"/>',
         'Brann':           '<path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z"/>',
         'Voldshendelse':   '<path d="M12 3l7 2.5v5.8c0 4.2-2.9 7.9-7 9.4-4.1-1.5-7-5.2-7-9.4V5.5L12 3z"/><path d="M12 8.8v4"/><circle cx="12" cy="15.9" r=".95" fill="currentColor" stroke="none"/>',
@@ -389,10 +389,12 @@
     };
     var POLICE_ICON_ALIAS = { 'Trafikkulykke': 'Ulykke', 'Arbeidsulykke': 'Ulykke', 'Ran': 'Tyveri', 'Trusler': 'Voldshendelse' };
 
+    // Icon plus the category name, so the headline can be just the place ("Stavanger, Madlalia")
     function policeIcon(category) {
         var key = POLICE_ICON_ALIAS[category] || category;
         return '<svg class="police-icon" viewBox="0 0 24 24" aria-hidden="true">' +
-            (POLICE_ICON_PATHS[key] || POLICE_ICON_PATHS._fallback) + '</svg>';
+            (POLICE_ICON_PATHS[key] || POLICE_ICON_PATHS._fallback) + '</svg>' +
+            '<span class="police-cat">' + escapeHtml(category || 'Hendelse') + '</span>';
     }
 
     /* ═══ CLOCK ═══ */
@@ -2509,11 +2511,11 @@
                 var first = updates[0];
                 var latest = updates[updates.length - 1];
 
-                // Title: "Category: Municipality, Area"
-                var title = first.category || 'Hendelse';
+                // Title is the place; the category rides on the card plate under the icon instead
+                var category = first.category || 'Hendelse';
                 var location = first.municipality || '';
                 if (first.area) location += (location ? ', ' : '') + first.area;
-                if (location) title += ': ' + location;
+                var title = location || category;
 
                 // Build description from all updates (newest first)
                 var isActive = latest.isActive;
@@ -2537,10 +2539,10 @@
                     pubDate: latest.createdOn,        // last update, so "case closed" activity counts as recency
                     image: latest.imageUrl || first.imageUrl || null,
                     source: 'politi',
-                    categories: [first.category || 'Hendelse'],
+                    categories: [],                   // the category is on the plate, no need to repeat it here
                     _isActive: isActive,
                     _threadId: tid,
-                    _category: first.category || 'Hendelse',
+                    _category: category,
                     _lastMs: parseDate(latest.createdOn),
                 });
             });
