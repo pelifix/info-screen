@@ -170,6 +170,14 @@
         renderSourceStatus();
     }
 
+    // Icons instead of word labels: they cost ~45px less per line, which is room for another name or two.
+    var SRC_ICONS = {
+        refresh: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>',
+        layers: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+        alert: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    };
+    var lastStatusSig = null;
+
     function renderSourceStatus() {
         var el = document.getElementById('source-status');
         if (!el) return;
@@ -191,20 +199,41 @@
         var articles = 0;
         if (rawFeeds) Object.keys(rawFeeds).forEach(function(k) { articles += (rawFeeds[k] || []).length; });
 
-        function chips(names, cls) {
-            if (!names.length) return '<span class="src-none">–</span>';
-            var shown = names.slice(0, 3);
-            return shown.map(function(n) {
-                return '<span class="src-chip ' + cls + '"><span class="dot"></span>' + escapeHtml(n) + '</span>';
-            }).join('') + (names.length > 3 ? '<span class="src-none">+' + (names.length - 3) + '</span>' : '');
-        }
+        // Rebuild only when the content really changed: setSource fires constantly, and a rebuild would
+        // restart the drift animation every time.
+        var sig = busy.join('|') + '#' + stalled.join('|') + '#' + okCount + '#' + articles;
+        if (sig !== lastStatusSig) {
+            lastStatusSig = sig;
 
-        el.innerHTML =
-            '<div class="src-line"><span class="src-key">Refreshing:</span>' + chips(busy, 'busy') + '</div>' +
-            '<div class="src-line"><span class="src-key">Sources:</span>' +
-                '<span class="src-val">' + okCount + ' active with ' + articles + ' articles</span></div>' +
-            '<div class="src-line src-last"><span class="src-key">Stalled:</span>' + chips(stalled, 'bad') + '</div>';
-        if (refreshEl) el.querySelector('.src-last').appendChild(refreshEl);
+            function chips(names, cls) {
+                if (!names.length) return '<span class="src-none">–</span>';
+                return names.map(function(n) {
+                    return '<span class="src-chip ' + cls + '"><span class="dot"></span>' + escapeHtml(n) + '</span>';
+                }).join('');
+            }
+            function line(icon, iconCls, inner, extraCls) {
+                return '<div class="src-line' + (extraCls || '') + '">' +
+                    '<svg class="src-ico ' + iconCls + '" viewBox="0 0 24 24" aria-hidden="true">' + SRC_ICONS[icon] + '</svg>' +
+                    '<div class="src-track"><div class="src-drift"><div class="src-copy">' + inner + '</div></div></div>';
+            }
+
+            el.innerHTML =
+                line('refresh', busy.length ? 'busy' : '', chips(busy, 'busy')) + '</div>' +
+                line('layers', '', '<span class="src-val">' + okCount + ' aktive · ' + articles + ' artikler</span>') + '</div>' +
+                line('alert', stalled.length ? 'bad' : '', chips(stalled, 'bad'), ' src-last') +
+                '</div>';
+            if (refreshEl) el.querySelector('.src-last').appendChild(refreshEl);
+
+            // Lines wider than the panel drift sideways, the same trick the events and bus lists use:
+            // a second identical copy, then translate the pair by exactly half.
+            el.querySelectorAll('.src-track').forEach(function(track) {
+                var drift = track.firstChild, copy = drift.firstChild;
+                if (copy.scrollWidth <= track.clientWidth + 1) return;
+                drift.appendChild(copy.cloneNode(true));
+                drift.style.animationDuration = Math.max(9, copy.scrollWidth / 26).toFixed(1) + 's';
+                drift.classList.add('scrolling');
+            });
+        }
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
         if (ecWrap) {
@@ -467,7 +496,7 @@
         var mins = Math.floor(secs / 60);
         var s = secs % 60;
         var time = mins > 0 ? mins + ':' + String(s).padStart(2, '0') : secs + 's';
-        refreshLabelEl.innerHTML = '<span class="refresh-prefix">refresh in </span>' + time;
+        refreshLabelEl.innerHTML = '<span class="refresh-prefix">om </span>' + time;
     }
     setInterval(updateRefreshRing, 1000);
     updateRefreshRing();

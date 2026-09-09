@@ -641,7 +641,7 @@ body.hide-cursor { cursor: none; }
 .refresh-label {
     font-family: var(--font-display); letter-spacing: var(--display-spacing); font-size: 0.7rem;
     color: var(--text-secondary); letter-spacing: 0.5px;
-    white-space: nowrap; margin-left: auto;
+    white-space: nowrap; margin-left: auto; padding-left: 8px;
 }
 .refresh-prefix {
     color: var(--text-dim);
@@ -877,11 +877,33 @@ body.hide-cursor { cursor: none; }
     width: 430px; flex-shrink: 0;
 }
 .src-line {
-    display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden;
+    display: flex; align-items: center; gap: 9px; min-width: 0;
     font-family: var(--font-display); letter-spacing: var(--display-spacing);
     font-size: 0.74rem; line-height: 1.4;   /* three of these must clear 72px minus padding */
 }
-.src-key { color: var(--text-dim); flex: none; width: 5.4em; }   /* keeps the three labels aligned */
+.src-ico {
+    width: 13px; height: 13px; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    color: var(--text-dim); transition: color 0.4s ease;
+}
+.src-ico.busy { color: var(--accent); animation: src-spin 2.6s linear infinite; }
+.src-ico.bad { color: #f87171; }
+@keyframes src-spin { to { transform: rotate(360deg); } }
+/* The track clips, the drift moves; a trailing spacer makes both copies identical so -50% is seamless */
+.src-track { flex: 1; min-width: 0; overflow: hidden; position: relative; }
+/* Soft edge so drifting names fade out rather than butting against the countdown, as the ticker does */
+.src-track::after {
+    content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 24px; z-index: 1;
+    background: linear-gradient(to left, var(--bg-card), transparent); pointer-events: none;
+}
+.src-drift { display: flex; }
+.src-drift.scrolling { animation: src-drift linear infinite; will-change: transform; }
+@keyframes src-drift {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
+}
+.src-copy { display: flex; align-items: center; gap: 12px; flex: none; }
+.src-copy::after { content: ''; width: 30px; flex: none; }
 .src-val { color: var(--text-secondary); white-space: nowrap; }
 .src-none { color: var(--text-dim); }
 .src-chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
