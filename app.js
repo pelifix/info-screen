@@ -177,17 +177,27 @@
         var refreshEl = el.querySelector('.refresh-label');
         // 30 labelled dots wrapped to five rows and dragged the whole bottom bar taller, so the names are
         // only spelled out for what is actually broken. Everything else is one row of bare dots.
-        var dots = Object.keys(SOURCES).map(function(key) {
+        // Only the sources doing something get their name spelled out: whatever is fetching right now, and
+        // anything broken (which keeps its name until it recovers). The rest stay bare dots, so the row fits
+        // one line. Named entries are capped, otherwise the first seconds after load would name all 30.
+        var keys = Object.keys(SOURCES);
+        keys.forEach(function(key) {
+            var st = SOURCES[key].status;
+            if (st === 'loading') anyLoading = true;
+            if (st === 'soon') anySoon = true;
+            if (st === 'error') bad.push(SOURCES[key].label);
+        });
+        var named = 0;
+        var dots = keys.map(function(key) {
             var s = SOURCES[key];
-            if (s.status === 'loading') anyLoading = true;
-            if (s.status === 'soon') anySoon = true;
-            if (s.status === 'error') bad.push(s.label);
-            return '<span class="dot ' + s.status + '" title="' + escapeHtml(s.label) + '"></span>';
+            var show = s.status === 'error' || ((s.status === 'loading' || s.status === 'soon') && named < 4);
+            if (show) named++;
+            return '<span class="src-item ' + s.status + (show ? ' named' : '') + '" title="' + escapeHtml(s.label) + '">' +
+                '<span class="dot ' + s.status + '"></span>' +
+                (show ? '<span class="src-name">' + escapeHtml(s.label) + '</span>' : '') +
+            '</span>';
         }).join('');
-        var badText = bad.length > 3 ? bad.slice(0, 3).join(', ') + ' +' + (bad.length - 3) : bad.join(', ');
-        el.innerHTML = '<div class="src-dots">' + dots + '</div><div class="src-foot">' +
-            (bad.length ? '<span class="src-bad"><span class="dot"></span>' + escapeHtml(badText) + '</span>' : '') +
-            '</div>';
+        el.innerHTML = '<div class="src-dots">' + dots + '</div><div class="src-foot"></div>';
         if (refreshEl) el.querySelector('.src-foot').appendChild(refreshEl);
         // Sync EC logo pulse with source activity
         var ecWrap = ecLogoFill ? ecLogoFill.parentElement : null;
