@@ -328,8 +328,19 @@ body.hide-cursor { cursor: none; }
     background: linear-gradient(135deg, #0c1428 0%, #152040 100%);
     opacity: 1; font-size: 3rem;
 }
+/* Politiet's heraldry as a faint watermark behind the category icon. Hotlinked, so nothing of theirs is
+   copied into this repo; the file is black on transparent, hence the invert. If it ever moves or is blocked
+   the background simply fails to load and the card keeps the category icon. */
+.article-img.police-img, .hero-img-wrap .police-hero-img { position: relative; }
+.article-img.police-img::before, .hero-img-wrap .police-hero-img::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: url('https://www.politiet.no/core/assets/images/police-heraldry.svg') center / 62% no-repeat;
+    filter: invert(1);
+    opacity: 0.09;
+}
 /* Category icons: shapes come from POLICE_ICON_PATHS in app.js, everything else is set here */
 .police-icon {
+    position: relative; z-index: 1;
     width: 42%; height: 42%; display: block;
     color: #7fb4ff; fill: none; stroke: currentColor;
     stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
