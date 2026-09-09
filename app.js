@@ -158,7 +158,7 @@
     // added every few seconds, so the belt never actually travelled. Here an append leaves the current
     // position untouched, and a chip is dropped the moment it passes the left edge (its width comes off the
     // offset at the same time, so nothing behind it jumps).
-    var BELT_SPEED = 26;               // px per second
+    var BELT_SPEED = 55;               // px per second
     var BELT_GAP = 12;                 // must match the gap on .src-belt in style.css
     var beltEl = null, beltNone = null, beltOffset = 0, beltRaf = null, beltPrev = 0;
     var beltChips = {};                // source key -> the chip currently on the belt
@@ -1625,6 +1625,7 @@
         }).join('');
     }
     async function loadFlights() {
+        setSource('fly', 'loading');       // the fetch itself skips status, so mark the start for the belt
         try {
             var xml = await sourceFetch('fly', FLY_URL, { parse: 'text', skipStatus: true, proxyOrder: ['codetabs', 'corslol', 'allorigins'] });   // redocly forwards Origin → 401; cors.lol rate-limits
             flights = parseFlights(xml);
@@ -2242,6 +2243,7 @@
     }
     async function loadMagasin() {
         var base = 'https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/';
+        setSource('magasin', 'loading');
         try {
             var res = await Promise.all([
                 sourceFetch('magasin', base + 'HentOffentligDataSisteUke', { skipStatus: true }),
@@ -2291,6 +2293,7 @@
     var PARKING_URL = 'https://opencom.no/dataset/36ceda99-bbc3-4909-bc52-b05a6d634b3f/resource/d1bdc6eb-9b49-4f24-89c2-ab9f5ce2acce/download/parking.json';
     var PARKING_PREF = ['Jernbanen', 'Valberget', 'Forum', 'Kyrre', 'St Olav', 'Siddis', 'Jorenholmen', 'Parketten', 'Posten'];
     async function loadParking() {
+        setSource('parkering', 'loading');
         try {
             var data = await sourceFetch('parkering', PARKING_URL, { skipStatus: true });
             if (!Array.isArray(data)) throw new Error('unexpected shape');
@@ -2387,6 +2390,7 @@
         var page = now.getDate() + '. ' + monN[now.getMonth()];
         var url = 'https://no.wikipedia.org/w/api.php?action=parse&page=' + encodeURIComponent(page) +
             '&prop=wikitext&format=json&origin=*';
+        setSource('paadag', 'loading');
         try {
             var data = await sourceFetch('paadag', url, { skipStatus: true, cacheKey: 'dev:paadag:' + page });
             var wikitext = data && data.parse && data.parse.wikitext && data.parse.wikitext['*'];
