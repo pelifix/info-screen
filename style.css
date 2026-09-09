@@ -328,22 +328,28 @@ body.hide-cursor { cursor: none; }
     background: linear-gradient(135deg, #0c1428 0%, #152040 100%);
     opacity: 1; font-size: 3rem;
 }
-/* Politiet's heraldry as a faint watermark behind the category icon. Hotlinked, so nothing of theirs is
+/* Politiet's heraldry as a small source mark in the bottom-right, clear of the tape (bottom-left) and the
+   POLITI badge (top-left) so the centre belongs to the category icon. Hotlinked, so nothing of theirs is
    copied into this repo; the file is black on transparent, hence the invert. If it ever moves or is blocked
-   the background simply fails to load and the card keeps the category icon. */
+   the mark simply fails to load and the card is unchanged otherwise. */
 .article-img.police-img, .hero-img-wrap .police-hero-img { position: relative; flex-direction: column; gap: 7px; }
 .article-img.police-img::before, .hero-img-wrap .police-hero-img::before {
-    content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: url('https://www.politiet.no/core/assets/images/police-heraldry.svg') center / 62% no-repeat;
+    content: ''; position: absolute; right: 8px; top: 8px; width: 22px; height: 22px; pointer-events: none;
+    background: url('https://www.politiet.no/core/assets/images/police-heraldry.svg') center / contain no-repeat;
     filter: invert(1);
-    opacity: 0.09;
+    opacity: 0.22;
 }
+/* On the tall hero plate there is room for it in the bottom-right, opposite the tape */
+.hero-img-wrap .police-hero-img::before { right: 18px; top: auto; bottom: 16px; width: 56px; height: 56px; }
+/* The feed plate is only ~110px tall and the tape crosses its lower-left, so the group sits high */
+.article-img.police-img { justify-content: center; padding-bottom: 20px; }
+.article-img.police-img .police-icon { width: 31%; }
 /* Category icons: shapes come from POLICE_ICON_PATHS in app.js, everything else is set here */
 .police-cat {
     position: relative; z-index: 1;
-    font-family: var(--font-display); font-weight: 700; font-size: 0.72rem;
-    letter-spacing: 2px; text-transform: uppercase; color: #7fb4ff;
-    text-align: center; padding: 0 6px; line-height: 1.2;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.58rem;
+    letter-spacing: 1px; text-transform: uppercase; color: #7fb4ff;
+    text-align: center; padding: 0 6px; line-height: 1.25;
 }
 .hero-img-wrap .police-cat { font-size: 1.15rem; letter-spacing: 3px; }
 .police-icon {

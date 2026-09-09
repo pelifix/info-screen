@@ -379,7 +379,7 @@
         'Voldshendelse':   '<path d="M12 3l7 2.5v5.8c0 4.2-2.9 7.9-7 9.4-4.1-1.5-7-5.2-7-9.4V5.5L12 3z"/><path d="M12 8.8v4"/><circle cx="12" cy="15.9" r=".95" fill="currentColor" stroke="none"/>',
         'Tyveri':          '<path d="M4.2 8.6h15.6l-1.2 11.1a1.5 1.5 0 01-1.5 1.3H6.9a1.5 1.5 0 01-1.5-1.3L4.2 8.6z"/><path d="M8.9 8.6V6.8a3.1 3.1 0 016.2 0v1.8"/>',
         'Innbrudd':        '<rect x="4.8" y="10.8" width="14.4" height="10.2" rx="2"/><path d="M8.6 10.8V7.4a3.4 3.4 0 016.2-1.9"/>',
-        'Skadeverk':       '<rect x="7" y="9.2" width="7.6" height="11.6" rx="1.5"/><path d="M9.4 9.2V6.6A1.5 1.5 0 0110.9 5.1h1.3"/><circle cx="17.3" cy="5.6" r=".8" fill="currentColor" stroke="none"/><circle cx="19.6" cy="7.4" r=".8" fill="currentColor" stroke="none"/><circle cx="17.6" cy="9.4" r=".8" fill="currentColor" stroke="none"/>',
+        'Skadeverk':       '<rect x="4" y="4" width="16" height="16" rx="1.8"/><path d="M12 10.8L8.2 4.4M12 10.8l7.6-1.9M12 10.8l-7.7 4.1M12 10.8l2.4 8.7M12 10.8l6.8 6.1"/><circle cx="12" cy="10.8" r=".9" fill="currentColor" stroke="none"/>',
         'Sj\u00F8':             '<path d="M4 14.6h16l-2.1 4a2 2 0 01-1.8 1.1H7.9a2 2 0 01-1.8-1.1l-2.1-4z"/><path d="M12 14.6V3.8l6.2 6.2H12"/>',
         'Savnet':          '<circle cx="10.6" cy="10.6" r="6.1"/><path d="M15 15l5.4 5.4"/><circle cx="10.6" cy="8.8" r="1.6"/><path d="M7.9 14.1a3 3 0 015.4 0"/>',
         'Redning':         '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3.6v5M12 15.4v5M3.6 12h5M15.4 12h5"/>',
@@ -388,13 +388,15 @@
         _fallback:         '<path d="M7.6 20.4h8.8"/><rect x="6.8" y="12.6" width="10.4" height="5.6" rx="1.4"/><path d="M9.6 12.6v-2.3a2.4 2.4 0 014.8 0v2.3"/><path d="M12 5.6V3.4M6.4 7.9L5 6.5M17.6 7.9L19 6.5"/>',
     };
     var POLICE_ICON_ALIAS = { 'Trafikkulykke': 'Ulykke', 'Arbeidsulykke': 'Ulykke', 'Ran': 'Tyveri', 'Trusler': 'Voldshendelse' };
+    // The two names too long for a 180px plate; the rest fit as they are
+    var POLICE_CAT_SHORT = { 'Voldshendelse': 'Vold', 'Andre hendelser': 'Annet' };
 
     // Icon plus the category name, so the headline can be just the place ("Stavanger, Madlalia")
     function policeIcon(category) {
         var key = POLICE_ICON_ALIAS[category] || category;
         return '<svg class="police-icon" viewBox="0 0 24 24" aria-hidden="true">' +
             (POLICE_ICON_PATHS[key] || POLICE_ICON_PATHS._fallback) + '</svg>' +
-            '<span class="police-cat">' + escapeHtml(category || 'Hendelse') + '</span>';
+            '<span class="police-cat">' + escapeHtml(POLICE_CAT_SHORT[category] || category || 'Hendelse') + '</span>';
     }
 
     /* ═══ CLOCK ═══ */
