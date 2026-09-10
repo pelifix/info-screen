@@ -461,7 +461,7 @@ body.hide-cursor { cursor: none; }
 .comic-card .hero-img-wrap {
     background: var(--bg-card); border-radius: var(--radius);
     display: flex; align-items: center; justify-content: center;
-    padding: 18px 18px 38px; box-sizing: border-box;
+    padding: 42px 18px 38px; box-sizing: border-box;   /* top clears the hero tabs bar (ends ~30px into the card) */
 }
 .comic-card .hero-top-badge { display: none; }         /* it says nothing on a comic */
 /* Two classes, so this beats `.hero-img-wrap img { object-fit: cover }` */
